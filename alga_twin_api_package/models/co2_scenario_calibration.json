@@ -1,0 +1,12 @@
+{
+  "reference_ppm": 400.0,
+  "approximate_treatment_contrast_ppm": 500.0,
+  "afdw_geometric_ratio": 1.0425814540367588,
+  "log_effect_per_100ppm": 0.008339961001432082,
+  "observed_ratio_min": 0.9721503196631842,
+  "observed_ratio_max": 1.1320359281437127,
+  "paired_strata": 4,
+  "effect_cap_pct": 15.0,
+  "provenance": "Hiltunen Chlorella laboratory experiment",
+  "warning": "Context-dependent external calibration; no ATP3 CO2 telemetry."
+}

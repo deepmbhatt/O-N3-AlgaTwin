@@ -1,165 +1,189 @@
-# API usage
+# Two-endpoint API usage
 
-## Authentication
+Base URL during local development:
 
-Authentication is optional locally. To protect a deployed instance:
-
-```bash
-export ALGATWIN_API_KEY='replace-with-a-long-random-secret'
+```text
+http://localhost:8000
 ```
 
-Then include the header on all endpoints except health/docs:
+All inputs and outputs use JSON.
 
-```bash
--H 'X-API-Key: replace-with-a-long-random-secret'
-```
+## 1. Prediction endpoint
 
-## Pond update
+`POST /predict`
 
-`POST /ponds/{pond_id}/update`
+Use this endpoint for incoming IoT readings, satellite reflectance, a pond image, or any combination of them.
 
-Use the stable feature names below. Missing numeric fields are imputed and reported through quality/confidence logic, but supplying all available values is strongly recommended.
-
-| Field | Meaning | Typical unit |
-|---|---|---|
-| `site_id` | Site/domain identifier | string |
-| `strain_id` | Algae strain identifier | string |
-| `duration_days` | Time since experiment/batch start | days |
-| `depth_cm` | Pond depth | cm |
-| `nitrate_mg_l` | Nitrate | mg/L |
-| `ammonium_mg_l` | Ammonium | mg/L |
-| `phosphorus_mg_l` | Phosphorus | mg/L |
-| `sensor_ph` | Water pH | pH |
-| `water_temp_avg_c` | Mean water temperature | °C |
-| `water_temp_max_c` | Maximum water temperature | °C |
-| `water_temp_min_c` | Minimum water temperature | °C |
-| `conductivity_reported_ms_cm` | Conductivity using the source dataset's reported label | source-reported |
-| `do_mg_l` | Dissolved oxygen | mg/L |
-| `do_pct_sat` | Dissolved-oxygen saturation | % |
-| `salinity_g_l` | Salinity | g/L |
-| `par_umol_m2_s` | Photosynthetically active radiation | µmol/m²/s |
-| `air_temp_c` | Air temperature | °C |
-| `relative_humidity_pct` | Relative humidity | % |
-| `global_light_w_m2` | Global light energy | W/m² |
-| `wind_km_h` | Wind speed | km/h |
-| `precipitation_cm` | Precipitation | cm |
-
-Example:
-
-```bash
-curl -X POST http://localhost:8000/ponds/pond-01/update \
-  -H 'Content-Type: application/json' \
-  --data @examples/update.json
-```
-
-The response separates provenance:
+### Request shape
 
 ```json
 {
   "pond_id": "pond-01",
-  "updated_at": "2026-09-12T04:30:00+00:00",
-  "measured": {
-    "values": {},
-    "source": "replayed_iot_daily",
-    "quality_flags": []
+  "observed_at": "2026-09-12T10:00:00+05:30",
+  "iot_data": {
+    "site_id": "ASU",
+    "strain_id": "KA32",
+    "sensor_ph": 8.2,
+    "water_temp_avg_c": 28.4,
+    "do_mg_l": 7.8,
+    "nitrate_mg_l": 45,
+    "phosphorus_mg_l": 3.1,
+    "global_light_w_m2": 320
   },
-  "estimated": {
-    "biomass_g_l": 0.31,
-    "growth_rate_g_l_h": 0.001,
-    "model_confidence": 0.72
-  },
-  "predicted": {
-    "biomass_6h_g_l": 0.32,
-    "biomass_24h_g_l": 0.31,
-    "method": "direct_supervised_near_horizon_afdw_model"
-  },
-  "anomaly": {
-    "probability": 0.24,
-    "severity": "normal",
-    "components": {
-      "supervised_crash_risk_0_2d": 0.08,
-      "unsupervised_novelty": 0.12,
-      "quality_and_stress_rules": 0.20
-    }
-  },
-  "carbon": {},
-  "verified": {},
-  "health": {"score": 86, "band": "healthy"}
+  "satellite_data": {
+    "red": 0.10,
+    "green": 0.16,
+    "blue": 0.12,
+    "RE1": 0.11,
+    "latitude": 40.15,
+    "longitude": -111.86,
+    "dataset": "whole-lake",
+    "category": "whole-lake"
+  }
 }
 ```
 
-## Current state and pond list
+At least one of `iot_data`, `satellite_data`, or `image_data` is required. For an image, add:
 
-```bash
-curl http://localhost:8000/ponds
-curl http://localhost:8000/ponds/pond-01/state
+```json
+{
+  "image_data": {
+    "filename": "pond.jpg",
+    "image_base64": "BASE64_ENCODED_IMAGE"
+  }
+}
 ```
 
-## Scenario mode
+The satellite `date` field is optional and defaults to `observed_at`. `dataset` and `category` default to `custom`. Latitude, longitude and four reflectance bands are required when satellite data is supplied.
 
-Call update at least once before running a scenario.
+### Response shape
+
+```json
+{
+  "request_type": "prediction",
+  "pond_id": "pond-01",
+  "observed_at": "2026-09-12T10:00:00+05:30",
+  "dashboard": {
+    "current_biomass_g_l": 0.31,
+    "biomass_6h_g_l": 0.32,
+    "biomass_24h_g_l": 0.31,
+    "health_score": 86.0,
+    "health_band": "healthy",
+    "anomaly_probability": 0.24,
+    "anomaly_severity": "normal",
+    "gross_co2_uptake_rate_g_l_h": 0.001,
+    "chlorophyll_a": 24.2,
+    "turbidity": 5.8
+  },
+  "results": {
+    "digital_twin": {},
+    "satellite": {},
+    "image": null
+  }
+}
+```
+
+Values for omitted input types are `null`. Sending repeated IoT observations with the same `pond_id` maintains that pond's in-memory history.
+
+Example:
 
 ```bash
-curl -X POST http://localhost:8000/ponds/pond-01/scenario \
+curl -X POST http://localhost:8000/predict \
   -H 'Content-Type: application/json' \
-  --data @examples/scenario.json
+  --data @examples/predict.json
 ```
 
-Supported controls are water temperature, pH, nitrate, phosphorus, PAR, global light, and experimental CO2. Scenario mode copies the state and never changes the observed state. CO2 results are explicitly marked as an external laboratory calibration.
+## 2. Simulation endpoint
 
-## Add drone/remote verification
+`POST /simulate`
+
+This endpoint is self-contained: send a custom baseline and the changes you want to test. It does not require an earlier prediction call and does not alter live pond state.
+
+### Request shape
+
+```json
+{
+  "pond_id": "pond-01-scenario",
+  "observed_at": "2026-09-12T10:00:00+05:30",
+  "baseline_iot_data": {
+    "site_id": "ASU",
+    "strain_id": "KA32",
+    "sensor_ph": 8.2,
+    "water_temp_avg_c": 28.4,
+    "do_mg_l": 7.8,
+    "nitrate_mg_l": 45,
+    "phosphorus_mg_l": 3.1,
+    "global_light_w_m2": 320
+  },
+  "changes": {
+    "water_temp_avg_c": 27.5,
+    "nitrate_mg_l": 70,
+    "global_light_w_m2": 280,
+    "co2_ppm": 900
+  }
+}
+```
+
+Supported scenario controls are water temperature, pH, nitrate, phosphorus, PAR, global light and experimental CO2. Optional `satellite_data` uses the same structure as `/predict`.
+
+### Response shape
+
+```json
+{
+  "request_type": "simulation",
+  "pond_id": "pond-01-scenario",
+  "dashboard": {},
+  "baseline": {},
+  "simulation": {
+    "provenance": "simulated",
+    "current_biomass_g_l": 0.31,
+    "simulated_biomass_g_l": 0.34,
+    "biomass_delta_g_l": 0.03,
+    "relative_biomass_delta_pct": 9.68,
+    "simulated_health_score": 89.0,
+    "classification": "beneficial"
+  },
+  "satellite": null,
+  "live_state_changed": false
+}
+```
+
+Example:
 
 ```bash
-curl -X POST http://localhost:8000/ponds/pond-01/verify \
+curl -X POST http://localhost:8000/simulate \
   -H 'Content-Type: application/json' \
-  --data @examples/verification.json
+  --data @examples/simulate.json
 ```
 
-Verification changes confidence/agreement metadata. It does not overwrite the sensor-based biomass estimate.
-
-## Satellite reflectance prediction
-
-```bash
-curl -X POST http://localhost:8000/remote/predict \
-  -H 'Content-Type: application/json' \
-  --data @examples/remote.json
-```
-
-This returns estimated chlorophyll-a and turbidity. The model is calibrated on Utah Lake and must not be presented as an ATP3 pond measurement.
-
-## Image prediction
-
-Images are sent as base64 JSON, so no shared filesystem is required:
-
-```bash
-IMAGE_B64=$(base64 -w 0 pond.jpg)
-curl -X POST http://localhost:8000/image/predict \
-  -H 'Content-Type: application/json' \
-  -d "{\"filename\":\"pond.jpg\",\"image_base64\":\"$IMAGE_B64\"}"
-```
-
-Maximum decoded image size is 10 MB. Supported content is JPG, PNG, or WebP. The response contains the predicted condition, confidence, and all class probabilities.
-
-## Browser/frontend example
+## Frontend example
 
 ```javascript
-const response = await fetch("http://localhost:8000/ponds/pond-01/update", {
+const response = await fetch("http://localhost:8000/predict", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
     // "X-API-Key": "your-key"
   },
-  body: JSON.stringify(sensorPayload),
+  body: JSON.stringify(sensorAndSatellitePayload)
 });
 
 if (!response.ok) throw new Error(await response.text());
-const twinState = await response.json();
-console.log(twinState.health.score, twinState.predicted.biomass_6h_g_l);
+
+const data = await response.json();
+setDashboard(data.dashboard);
 ```
 
-## Error responses
+## Authentication and errors
 
-- `401`: missing/invalid configured API key;
-- `404`: pond has not been updated;
-- `422`: invalid payload, unsupported scenario control, or invalid image.
+Set `ALGATWIN_API_KEY` to protect both workflow endpoints, then send `X-API-Key`.
 
+- `401`: missing or invalid API key;
+- `422`: invalid input, no prediction data, unsupported simulation control, or invalid image;
+- `500`: unexpected server failure.
+
+Operational routes:
+
+- `GET /health` checks model readiness;
+- `GET /models` returns the model manifest;
+- `GET /docs` provides interactive Swagger documentation.

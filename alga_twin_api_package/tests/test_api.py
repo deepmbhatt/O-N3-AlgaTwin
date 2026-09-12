@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
 
@@ -20,94 +19,129 @@ def _client() -> TestClient:
     return TestClient(create_app(MODEL_DIR))
 
 
-def _valid_update(client: TestClient, pond_id: str = "test-pond"):
+def _iot_data(client: TestClient) -> tuple[str, dict]:
     registry = client.app.state.registry
     row = registry.master.dropna(subset=["water_temp_avg_c", "sensor_ph", "do_mg_l"]).iloc[0]
     values = row.to_dict()
+    observed_at = row.date.isoformat()
     values.pop("date", None)
-    values = {
+    clean = {
         key: value.item() if isinstance(value, np.generic) else value
         for key, value in values.items()
         if not (isinstance(value, float) and np.isnan(value))
     }
-    response = client.post(
-        f"/ponds/{pond_id}/update",
-        json={"observed_at": row.date.isoformat(), "values": values},
-    )
-    assert response.status_code == 200, response.text
-    return response.json()
+    return observed_at, clean
 
 
-def test_health_and_model_inventory():
+def _satellite_data() -> dict:
+    return {
+        "red": 0.10,
+        "green": 0.16,
+        "blue": 0.12,
+        "RE1": 0.11,
+        "latitude": 40.15,
+        "longitude": -111.86,
+        "dataset": "whole-lake",
+        "category": "whole-lake",
+    }
+
+
+def test_health_inventory_and_two_workflow_endpoints():
     client = _client()
     health = client.get("/health")
     assert health.status_code == 200
     assert health.json()["ready"] is True
     assert health.json()["model_families"] == 6
     assert health.json()["logical_estimators"] == 9
-    assert all(item["exists"] for item in health.json()["artifacts"].values())
 
     models = client.get("/models")
     assert models.status_code == 200
     assert models.json()["status"].startswith("complete")
 
+    schema = client.get("/openapi.json").json()
+    post_paths = {path for path, methods in schema["paths"].items() if "post" in methods}
+    assert post_paths == {"/predict", "/simulate"}
 
-def test_update_state_and_non_mutating_scenario():
+
+def test_predict_combines_iot_satellite_and_image_as_json():
     client = _client()
-    state = _valid_update(client)
-    assert state["pond_id"] == "test-pond"
-    assert state["predicted"]["method"] == "direct_supervised_near_horizon_afdw_model"
-    assert 0 <= state["health"]["score"] <= 100
-
-    before = deepcopy(client.get("/ponds/test-pond/state").json())
-    scenario = client.post(
-        "/ponds/test-pond/scenario",
-        json={"changes": {"water_temp_avg_c": 28.0, "co2_ppm": 900.0}},
-    )
-    assert scenario.status_code == 200, scenario.text
-    assert scenario.json()["provenance"] == "simulated"
-    assert scenario.json()["experimental_co2_calibration"] is not None
-    assert client.get("/ponds/test-pond/state").json() == before
-
-
-def test_remote_and_base64_image_predictions():
-    client = _client()
-    remote = client.post(
-        "/remote/predict",
-        json={
-            "date": "2026-09-12T10:00:00+05:30",
-            "red": 0.10,
-            "green": 0.16,
-            "blue": 0.12,
-            "RE1": 0.11,
-            "latitude": 40.15,
-            "longitude": -111.86,
-            "dataset": "whole-lake",
-            "category": "whole-lake",
-        },
-    )
-    assert remote.status_code == 200, remote.text
-    assert remote.json()["chlorophyll_a"] >= 0
-    assert remote.json()["turbidity"] >= 0
-
+    observed_at, iot_data = _iot_data(client)
     buffer = BytesIO()
     Image.new("RGB", (96, 96), color=(55, 120, 70)).save(buffer, format="JPEG")
-    image = client.post(
-        "/image/predict",
+    response = client.post(
+        "/predict",
         json={
-            "image_base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
-            "filename": "synthetic-pond.jpg",
+            "pond_id": "test-pond",
+            "observed_at": observed_at,
+            "iot_data": iot_data,
+            "satellite_data": _satellite_data(),
+            "image_data": {
+                "image_base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
+                "filename": "synthetic-pond.jpg",
+            },
         },
     )
-    assert image.status_code == 200, image.text
-    assert image.json()["provenance"] == "estimated_from_image"
-    assert image.json()["filename"] == "synthetic-pond.jpg"
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["request_type"] == "prediction"
+    assert body["results"]["digital_twin"]["pond_id"] == "test-pond"
+    assert body["results"]["satellite"]["chlorophyll_a"] >= 0
+    assert body["results"]["satellite"]["turbidity"] >= 0
+    assert body["results"]["image"]["provenance"] == "estimated_from_image"
+    assert 0 <= body["dashboard"]["health_score"] <= 100
+    assert body["dashboard"]["current_biomass_g_l"] is not None
 
 
-def test_optional_api_key(monkeypatch):
-    monkeypatch.setenv("ALGATWIN_API_KEY", "test-secret")
+def test_predict_accepts_satellite_without_iot():
     client = _client()
-    assert client.get("/health").status_code == 200
-    assert client.get("/models").status_code == 401
-    assert client.get("/models", headers={"X-API-Key": "test-secret"}).status_code == 200
+    response = client.post(
+        "/predict",
+        json={
+            "pond_id": "satellite-only",
+            "observed_at": "2026-09-12T10:00:00+05:30",
+            "satellite_data": _satellite_data(),
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["results"]["digital_twin"] is None
+    assert response.json()["dashboard"]["chlorophyll_a"] >= 0
 
+
+def test_simulation_uses_custom_baseline_without_changing_live_state():
+    client = _client()
+    observed_at, iot_data = _iot_data(client)
+    assert client.app.state.engines == {}
+    response = client.post(
+        "/simulate",
+        json={
+            "pond_id": "scenario-pond",
+            "observed_at": observed_at,
+            "baseline_iot_data": iot_data,
+            "changes": {"water_temp_avg_c": 28.0, "co2_ppm": 900.0},
+            "satellite_data": _satellite_data(),
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["request_type"] == "simulation"
+    assert body["simulation"]["provenance"] == "simulated"
+    assert body["simulation"]["experimental_co2_calibration"] is not None
+    assert body["dashboard"]["simulated_biomass_g_l"] == body["simulation"]["simulated_biomass_g_l"]
+    assert body["dashboard"]["simulation_classification"] == body["simulation"]["classification"]
+    assert body["live_state_changed"] is False
+    assert client.app.state.engines == {}
+
+
+def test_empty_prediction_and_optional_api_key(monkeypatch):
+    client = _client()
+    empty = client.post(
+        "/predict",
+        json={"pond_id": "empty", "observed_at": "2026-09-12T10:00:00+05:30"},
+    )
+    assert empty.status_code == 422
+
+    monkeypatch.setenv("ALGATWIN_API_KEY", "test-secret")
+    protected = _client()
+    assert protected.get("/health").status_code == 200
+    assert protected.get("/models").status_code == 401
+    assert protected.get("/models", headers={"X-API-Key": "test-secret"}).status_code == 200

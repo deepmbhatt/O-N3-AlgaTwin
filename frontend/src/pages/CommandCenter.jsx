@@ -1,212 +1,67 @@
-import React, { useState, useEffect } from 'react';
-import Scene from '../components/Scene';
-import Navigation from '../components/Navigation';
+import { useMemo } from 'react';
+import LivingPond from '../components/LivingPond';
+import Mascot from '../components/Mascot';
+import Sparkline from '../components/Sparkline';
+import { usePondData } from '../context/pondDataStore';
+import { deriveVisualState } from '../lib/visualState';
 
-// Lock body scroll for this fixed-layout page
-function useBodyOverflowHidden() {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+function Metric({ label, value, unit, detail, tone = '', level }) {
+  return <article className={`metric-card ${tone}`}><span>{label}</span><div><b>{value}</b><em>{unit}</em></div><small>{detail}</small>{level && <span className="metric-level">{level}</span>}</article>;
 }
-
-const initialPonds = {
-  p1: { name: 'Pond P1', health: 96, activity: 0.92, temp: 24.3, ph: 7.10, do: 8.3, turb: 11, co2in: 122, co2out: 16, light: 780, nutrient: 'Optimal', state: 'healthy' },
-  p2: { name: 'Pond P2', health: 94, activity: 0.88, temp: 24.6, ph: 7.05, do: 8.1, turb: 13, co2in: 119, co2out: 18, light: 762, nutrient: 'Optimal', state: 'healthy' },
-  p3: { name: 'Pond P3', health: 95, activity: 0.90, temp: 24.5, ph: 7.08, do: 8.2, turb: 12, co2in: 121, co2out: 17, light: 770, nutrient: 'Optimal', state: 'healthy' },
-};
-
-const PRESETS = {
-  healthy: { health: 95, activity: 0.90, temp: 24.5, ph: 7.08, do: 8.2, turb: 12, co2in: 121, co2out: 17, nutrient: 'Optimal', tint: null, pulse: null, message: null },
-  mild: { health: 78, activity: 0.62, temp: 25.4, ph: 6.92, do: 7.4, turb: 19, co2in: 104, co2out: 38, nutrient: 'Slightly low', tint: 'amber', pulse: 'pulse',
-    message: { title: 'Mild Stress Detected', body: 'Productivity is trending 6% below expected behaviour. No intervention required yet — continue monitoring.' } },
-  nutrient: { health: 70, activity: 0.52, temp: 25.1, ph: 6.85, do: 7.1, turb: 22, co2in: 98, co2out: 44, nutrient: 'Below optimal', tint: 'amber', pulse: 'pulse',
-    message: { title: 'Possible Nutrient Stress', body: 'Nutrient concentration has dropped below optimal range. Productivity is currently 12% below expected behaviour.' } },
-  heat: { health: 66, activity: 0.48, temp: 29.2, ph: 6.95, do: 6.6, turb: 24, co2in: 95, co2out: 47, nutrient: 'Optimal', tint: 'orange', pulse: 'pulse',
-    message: { title: 'High Temperature Stress', body: 'Pond temperature has risen 4.7°C above target range, reducing growth efficiency and gas exchange.' } },
-  co2fail: { health: 60, activity: 0.14, temp: 24.8, ph: 7.20, do: 5.9, turb: 20, co2in: 31, co2out: 6, nutrient: 'Optimal', tint: 'orange', pulse: 'pulse',
-    message: { title: 'CO₂ Supply Disruption', body: 'Inlet CO₂ flow has dropped sharply. Absorption rate is critically reduced across this pond.' } },
-  critical: { health: 38, activity: 0.08, temp: 27.6, ph: 6.68, do: 5.1, turb: 31, co2in: 52, co2out: 11, nutrient: 'Deficient', tint: 'red', pulse: 'pulse-fast',
-    message: { title: 'Critical Anomaly — 87% probability', body: 'Biomass productivity has fallen 18%. Possible nutrient stress detected. Estimated 7-day carbon capture impact: −160 kg CO₂ if untreated.' } },
-};
-
-function healthColor(h) {
-  const stops = [
-    [100, [47, 190, 134]], [85, [63, 203, 152]], [70, [183, 195, 75]],
-    [55, [217, 138, 61]], [35, [178, 85, 47]], [0, [122, 59, 51]],
-  ];
-  h = Math.max(0, Math.min(100, h));
-  for (let i = 0; i < stops.length - 1; i++) {
-    const [h1, c1] = stops[i], [h2, c2] = stops[i + 1];
-    if (h <= h1 && h >= h2) {
-      const t = (h - h2) / (h1 - h2 || 1);
-      const c = c1.map((v, idx) => Math.round(v * t + c2[idx] * (1 - t)));
-      return `rgb(${c[0]},${c[1]},${c[2]})`;
-    }
-  }
-  return `rgb(${stops[stops.length - 1][1].join(',')})`;
-}
-
-function tintColor(kind) { return { amber: 'rgba(217,138,61,0.55)', orange: 'rgba(201,106,46,0.55)', red: 'rgba(178,66,47,0.6)' }[kind] || 'transparent'; }
-function ringColor(kind) { return { amber: '#D98A3D', orange: '#C96A2E', red: '#B2422F' }[kind] || 'transparent'; }
-function dotColor(kind) { return ringColor(kind) || '#2FBE86'; }
-
-const DEMO_TARGET = 'p3';
+const metricDefinitions = [
+  ['Water temperature', 'water_temp_avg_c', 'deg C', '25-29'], ['Dissolved oxygen', 'do_mg_l', 'mg/L', '> 6.0'],
+  ['pH', 'sensor_ph', '', '7.5-8.5'], ['Nitrate', 'nitrate_mg_l', 'mg/L', '20-60'],
+  ['Phosphorus', 'phosphorus_mg_l', 'mg/L', '1.0-4.0'], ['PAR light', 'par_umol_m2_s', 'umol/m2/s', '350-700'],
+];
 
 export default function CommandCenter() {
-  useBodyOverflowHidden();
-  const [night, setNight] = useState(false);
-  const [ponds, setPonds] = useState(initialPonds);
-  const [selectedPond, setSelectedPond] = useState('p1');
-  const [kpis, setKpis] = useState({ co2: 0, health: 0, conf: 96, biomass: 0, anomalies: 0 });
-  const [bubbles, setBubbles] = useState({});
+  const { snapshot, pondOptions, activePondId, setActivePondId, connection, error, busy, processNextBurst, usingFallback, cursor, autoPredict, predictMs, lastPrediction } = usePondData();
+  const visual = useMemo(() => deriveVisualState(snapshot), [snapshot]);
+  const d = snapshot.dashboard;
+  const anomalyPct = Math.round(d.anomaly_probability * 100);
+  const adverse = visual.warningSeverity >= 1 || d.health_score < 75;
 
-  useEffect(() => {
-    // Generate bubbles statically for each pond
-    const newBubbles = {};
-    Object.keys(ponds).forEach(id => {
-      newBubbles[id] = Array.from({ length: 10 }).map((_, i) => ({
-        id: i,
-        size: 3 + Math.random() * 5,
-        left: 10 + Math.random() * 80,
-        baseDur: 3.5 + Math.random() * 3,
-        delay: Math.random() * 4
-      }));
-    });
-    setBubbles(newBubbles);
-  }, []);
-
-  useEffect(() => {
-    const pondArr = Object.values(ponds);
-    const health = pondArr.reduce((s, p) => s + p.health, 0) / pondArr.length;
-    const co2 = pondArr.reduce((s, p) => s + p.activity * 158, 0);
-    const biomass = 2.3 + (health / 100) * 2.1;
-    const anomalies = pondArr.filter(p => p.state !== 'healthy').length;
-    const criticalCount = pondArr.filter(p => p.state === 'critical').length;
-    let conf = 97 - anomalies * 5 - criticalCount * 9;
-    conf = Math.max(52, Math.min(98, conf));
-    setKpis({ co2, health, conf, biomass, anomalies });
-  }, [ponds]);
-
-  const applyDemoState = (stateKey) => {
-    const preset = PRESETS[stateKey];
-    if (!preset) return;
-    
-    setPonds(prev => ({
-      ...prev,
-      [DEMO_TARGET]: {
-        ...prev[DEMO_TARGET],
-        health: preset.health, activity: preset.activity, temp: preset.temp, ph: preset.ph,
-        do: preset.do, turb: preset.turb, co2in: preset.co2in, co2out: preset.co2out,
-        nutrient: preset.nutrient, state: stateKey,
-      }
-    }));
-    if (selectedPond !== DEMO_TARGET) setSelectedPond(DEMO_TARGET);
-  };
-
-  const p = ponds[selectedPond];
-  const targetPond = ponds[DEMO_TARGET];
-  const warningPreset = targetPond ? PRESETS[targetPond.state] : null;
-
-  return (
-    <>
-      <Scene night={night}>
-        <div className="ponds-layer" id="pondsLayer">
-          {Object.keys(ponds).map(id => {
-            const pond = ponds[id];
-            const preset = PRESETS[pond.state];
-            const hasTint = preset && preset.tint;
-            const wrapClass = `pond-wrap ${id === selectedPond ? 'selected' : ''} ${hasTint ? (preset.pulse || 'pulse') : ''}`;
-            const c = healthColor(pond.health);
-
-            return (
-              <div key={id} className={wrapClass} role="button" tabIndex="0" aria-label={`${pond.name} — click to inspect`} onClick={() => setSelectedPond(id)} onKeyDown={e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedPond(id); }}}>
-                <div className="pond-tint" style={{
-                  opacity: hasTint ? 1 : 0,
-                  background: hasTint ? `radial-gradient(circle, ${tintColor(preset.tint)}, transparent 70%)` : 'transparent'
-                }}></div>
-                <div className="pond-ring" style={{
-                  opacity: hasTint ? 0.9 : 0,
-                  borderColor: hasTint ? ringColor(preset.tint) : 'transparent'
-                }}></div>
-                <div className="pond" style={{ background: `radial-gradient(circle at 35% 28%, ${c}, ${c} 40%, rgba(10,50,40,0.9) 100%)` }}>
-                  <div className="pond-surface"></div>
-                  <div className="bubbles">
-                    {(bubbles[id] || []).map(b => {
-                      const dur = b.baseDur / Math.max(0.15, pond.activity);
-                      return (
-                        <div key={b.id} className="bubble" style={{
-                          width: b.size + 'px', height: b.size + 'px', left: b.left + '%',
-                          animationDuration: dur + 's', animationDelay: b.delay + 's',
-                          opacity: Math.max(0.25, pond.activity)
-                        }}></div>
-                      );
-                    })}
-                  </div>
-                  <div className="patches" style={{ opacity: pond.health < 45 ? Math.min(1, (45 - pond.health) / 25) : 0 }}></div>
-                </div>
-                <div className="pond-label">
-                  <span className="pname">{pond.name}</span>
-                  <span className="phealth">{Math.round(pond.health)}% health</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Scene>
-
-      <Navigation onNightToggle={() => setNight(!night)} />
-
-      <div className="kpi-bar glass" role="region" aria-label="Farm KPIs">
-        <div className="kpi hero">
-          <div className="label">CO₂ Capture Estimate Today</div>
-          <div className="value"><span className="num">{Math.round(kpis.co2)}</span><span className="unit">kg</span></div>
-        </div>
-        <div className="kpi">
-          <div className="label">Farm Health Score</div>
-          <div className="value"><span className="num">{Math.round(kpis.health)}</span><span className="unit">%</span></div>
-        </div>
-        <div className="kpi">
-          <div className="label">Carbon Confidence Score</div>
-          <div className="value"><span className="num">{Math.round(kpis.conf)}</span><span className="unit">%</span></div>
-        </div>
-        <div className="kpi">
-          <div className="label">Biomass Estimate</div>
-          <div className="value"><span className="num">{kpis.biomass.toFixed(2)}</span><span className="unit">g/L</span></div>
-        </div>
-        <div className="kpi">
-          <div className="label">Active Anomalies</div>
-          <div className="value"><span className="num">{kpis.anomalies}</span></div>
-        </div>
+  return <div className={`page command-page page-state-${visual.healthMode}`}>
+    <header className="page-heading">
+      <div><span className="eyebrow">Command center + digital twin</span><h1>Your pond, alive in real time.</h1><p>Live biology, water quality, carbon performance and forecasts in one operational view.</p></div>
+      <div className="heading-actions">
+        <div className="auto-predict-status"><i/><span><b>{autoPredict ? 'Auto prediction on' : 'Auto prediction off'}</b><small>{autoPredict ? `Every ${Math.round(predictMs / 1000)} seconds` : 'Dashboard refresh only'}</small></span></div>
+        <label className="select-field"><span>Pond</span><select value={activePondId} onChange={e => setActivePondId(e.target.value)}>{pondOptions.map(p => <option key={p.id} value={p.id}>{p.name} - {p.status}</option>)}</select></label>
+        <button className="burst-button" onClick={() => void processNextBurst()} disabled={busy}><i/>{busy ? 'Processing...' : 'Predict now'}</button>
       </div>
-
-      <div className="env-panel glass" role="region" aria-label="Environmental sensor readings">
-        <h3>{p.name}</h3>
-        <div className="sub">Sensor readings (simulated)</div>
-        <div className="env-row"><span>Temperature</span><span>{p.temp.toFixed(1)} °C</span></div>
-        <div className="env-row"><span>pH</span><span>{p.ph.toFixed(2)}</span></div>
-        <div className="env-row"><span>Dissolved oxygen</span><span>{p.do.toFixed(1)} mg/L</span></div>
-        <div className="env-row"><span>Turbidity</span><span>{p.turb} NTU</span></div>
-        <div className="env-row"><span>CO₂ inlet / outlet</span><span>{p.co2in} / {p.co2out} L/min</span></div>
-        <div className="env-row"><span>Light intensity</span><span>{p.light} µmol/m²/s</span></div>
-        <div className="env-row"><span>Nutrient status</span><span>{p.nutrient}</span></div>
+    </header>
+    {(error || usingFallback) && <div className={`data-notice notice-${connection}`}><span>{connection === 'empty' ? 'API READY' : connection === 'fallback' ? 'DEMO FALLBACK' : 'CONNECTION'}</span><p>{error || 'Showing demonstration data until the API returns live history.'}</p></div>}
+    <div className={`anomaly-banner anomaly-${d.anomaly_severity} ${adverse ? 'is-adverse' : ''}`}>
+      <div className="anomaly-signal"><span><i/><i/><i/></span></div>
+      <div><small>{adverse ? 'Active ecosystem signal' : 'Continuous anomaly watch'}</small><b>{adverse ? snapshot.insights[0].message : 'No adverse pattern detected across the current sensor window.'}</b></div>
+      <div className="anomaly-score"><strong>{anomalyPct}%</strong><span>anomaly probability</span></div>
+      <div className="state-key"><span className="key-healthy">Healthy</span><span className="key-stressed">Watch</span><span className="key-critical">Critical</span></div>
+    </div>
+    <div className="command-grid">
+      <div className={`scene-panel scene-alert-${d.anomaly_severity}`}>
+        <LivingPond snapshot={snapshot} visual={visual} title={`${activePondId.replace('-', ' ').toUpperCase()} - ${snapshot.label}`} />
+        <div className={`health-orb health-${visual.healthMode}`}><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20"/><circle cx="24" cy="24" r="20" style={{ strokeDashoffset: 126 - 1.26 * d.health_score }}/></svg><span><b>{Math.round(d.health_score)}</b><small>health</small></span></div>
       </div>
-
-      <div className="demo-panel glass" role="region" aria-label="Demo scenario controls">
-        <span className="dtitle">Demo scenarios — Pond P3</span>
-        {Object.keys(PRESETS).map(key => (
-          <button key={key} className={`demo-btn ${targetPond.state === key ? 'active' : ''}`} onClick={() => applyDemoState(key)} title={`Apply ${key} scenario`}>
-            {key === 'healthy' ? 'Healthy' : key === 'mild' ? 'Mild Stress' : key === 'nutrient' ? 'Nutrient Stress' : key === 'heat' ? 'High Temperature' : key === 'co2fail' ? 'CO₂ Supply Failure' : 'Critical Anomaly'}
-          </button>
-        ))}
+      <aside className="insight-rail">
+        <div className="rail-heading"><div><span className="eyebrow">Current model reading</span><h2>{snapshot.label} ecosystem</h2></div><span className={`status-badge status-${visual.healthMode}`}><i/>{d.anomaly_severity}</span></div>
+        <Mascot message={snapshot.insights[0].message} mood={visual.mascotMood} />
+        <div className="mini-trend"><div><span>Biomass trajectory</span><b>{d.current_biomass_g_l.toFixed(3)} <small>g/L</small></b></div><span className={d.biomass_6h_g_l >= d.current_biomass_g_l ? 'trend-up' : 'trend-down'}>{d.biomass_6h_g_l >= d.current_biomass_g_l ? '+' : '-'} 6h {d.biomass_6h_g_l.toFixed(3)}</span><Sparkline values={snapshot.history.map(x => x.biomass)} height={94}/></div>
+        <div className="insight-list">{snapshot.insights.slice(0, 3).map((item, index) => <div key={item.code} className={`insight-item severity-${item.severity}`}><span>{String(index + 1).padStart(2, '0')}</span><p><b>{item.code.replaceAll('_', ' ')}</b>{item.message}</p></div>)}</div>
+      </aside>
+    </div>
+    <section className="metrics-row">
+      <Metric label="Water temperature" value={snapshot.iot.water_temp_avg_c.toFixed(1)} unit="deg C" detail="Preferred: 25-29" tone={snapshot.iot.water_temp_avg_c > 32 ? 'metric-danger' : snapshot.iot.water_temp_avg_c < 24 ? 'metric-warning' : ''} level={snapshot.iot.water_temp_avg_c > 32 ? 'HIGH' : null}/>
+      <Metric label="Dissolved oxygen" value={snapshot.iot.do_mg_l.toFixed(1)} unit="mg/L" detail="Preferred: above 6.0" tone={snapshot.iot.do_mg_l < 4 ? 'metric-danger' : snapshot.iot.do_mg_l < 6 ? 'metric-warning' : ''} level={snapshot.iot.do_mg_l < 4 ? 'CRITICAL' : null}/>
+      <Metric label="pH balance" value={snapshot.iot.sensor_ph.toFixed(2)} unit="pH" detail="Preferred: 7.5-8.5" tone={snapshot.iot.sensor_ph > 9 || snapshot.iot.sensor_ph < 7 ? 'metric-danger' : snapshot.iot.sensor_ph > 8.5 ? 'metric-warning' : ''}/>
+      <Metric label="CO2 concentration" value={Math.round(visual.co2Ppm)} unit="ppm" detail="Controls the visible gas bubbles" tone={visual.co2Ppm > 900 ? 'metric-danger' : visual.co2Ppm > 650 ? 'metric-warning' : ''}/>
+    </section>
+    <section className="unified-twin-section">
+      <div className="unified-section-heading"><div><span className="eyebrow">Digital twin detail</span><h2>Read the system beneath the surface.</h2><p>Observed chemistry and model trajectory stay with the live pond in one view.</p></div><span className="prediction-stamp">{lastPrediction ? `Last predicted ${lastPrediction.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'Waiting for first automatic prediction'}</span></div>
+      <div className="detail-grid command-detail-grid">
+        <section className="panel sensor-panel"><div className="panel-title"><div><span className="eyebrow">Sensor field</span><h2>Water chemistry</h2></div><span>preferred range</span></div><div className="sensor-grid">{metricDefinitions.map(([label,key,unit,range]) => { const value=snapshot.iot[key]; const alert=(key==='do_mg_l'&&value<4)||(key==='water_temp_avg_c'&&value>32)||(key==='sensor_ph'&&(value>9||value<7)); return <article key={key} className={alert?'sensor-alert':''}><span>{label}</span><b>{Number(value).toFixed(key === 'sensor_ph' ? 2 : 1)} <small>{unit}</small></b><em>Target {range}</em>{alert&&<strong>OUTSIDE RANGE</strong>}</article>; })}</div></section>
+        <section className="panel forecast-panel"><div className="panel-title"><div><span className="eyebrow">Model trajectory</span><h2>Biomass history</h2></div><span className={d.biomass_6h_g_l>=d.current_biomass_g_l?'trend-up':'trend-down'}>Observed + forecast</span></div><Sparkline values={snapshot.history.map(x => x.biomass)} height={190}/><div className="chart-axis"><span>Oldest</span><span>History</span><span>Latest</span><span>6h forecast</span></div></section>
       </div>
-
-      <div className={`warning-card glass ${warningPreset && warningPreset.message ? 'show' : ''}`} role="alert" aria-live="polite">
-        <div className="wtitle"><span className="wdot" style={{ background: warningPreset ? dotColor(warningPreset.tint) : '' }}></span><span>{warningPreset?.message?.title || '—'}</span></div>
-        <p>{warningPreset?.message?.body || '—'}</p>
-      </div>
-
-      <div className="demo-data-badge" aria-label="This is a prototype using simulated data">PROTOTYPE · Simulated Data</div>
-    </>
-  );
+    </section>
+    <footer className="replay-strip"><div><span className="live-dot"/><b>Stream row {snapshot.stream_row}</b><small>{new Date(snapshot.observed_at).toLocaleString()}</small></div><div className="replay-track"><i style={{ width: `${Math.max(4, snapshot.stream_row / Math.max(9.99, (cursor?.total_rows || 999) / 100))}%` }}/></div><span>Cycle {snapshot.stream_cycle} - circular stream</span></footer>
+  </div>;
 }

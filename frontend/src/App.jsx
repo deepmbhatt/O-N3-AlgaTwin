@@ -1,27 +1,19 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import AppShell from './components/AppShell';
+import { PondDataProvider } from './context/PondDataContext';
 import CommandCenter from './pages/CommandCenter';
-import PondDigitalTwin from './pages/PondDigitalTwin';
-import AIIntelligence from './pages/AIIntelligence';
-import SatelliteVerification from './pages/SatelliteVerification';
 import ScenarioSimulator from './pages/ScenarioSimulator';
-import CarbonMRV from './pages/CarbonMRV';
-import Reports from './pages/Reports';
+import SatelliteVerification from './pages/SatelliteVerification';
 
-function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<CommandCenter />} />
-        <Route path="/pond-digital-twin" element={<PondDigitalTwin />} />
-        <Route path="/ai-intelligence" element={<AIIntelligence />} />
-        <Route path="/satellite-verification" element={<SatelliteVerification />} />
-        <Route path="/scenario-simulator" element={<ScenarioSimulator />} />
-        <Route path="/carbon-mrv" element={<CarbonMRV />} />
-        <Route path="/reports" element={<Reports />} />
-      </Routes>
-    </Router>
-  );
+export default function App() {
+  return <BrowserRouter><PondDataProvider><Routes><Route element={<AppShell/>}>
+    <Route path="/" element={<CommandCenter/>}/>
+    <Route path="/digital-twin" element={<Navigate to="/" replace/>}/>
+    <Route path="/scenario-lab" element={<ScenarioSimulator/>}/>
+    <Route path="/remote-verification" element={<SatelliteVerification/>}/>
+    <Route path="/pond-digital-twin" element={<Navigate to="/" replace/>}/>
+    <Route path="/scenario-simulator" element={<Navigate to="/scenario-lab" replace/>}/>
+    <Route path="/satellite-verification" element={<Navigate to="/remote-verification" replace/>}/>
+    <Route path="*" element={<Navigate to="/" replace/>}/>
+  </Route></Routes></PondDataProvider></BrowserRouter>;
 }
-
-export default App;

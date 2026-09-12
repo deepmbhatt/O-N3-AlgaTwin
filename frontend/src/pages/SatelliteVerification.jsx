@@ -1,122 +1,34 @@
-import React, { useState } from 'react';
-import Scene from '../components/Scene';
-import Navigation from '../components/Navigation';
+import { useState } from 'react';
+import LivingPond from '../components/LivingPond';
+import { usePondData } from '../context/pondDataStore';
+import { deriveVisualState } from '../lib/visualState';
 
-const SAT_PONDS = {
-  p1: { name: 'Pond P1', coverage: 95, chlorophyll: 0.71, imagery: 4.21, ai: 4.28, capture: 'Drone multispectral', pos: { left: '12%', top: '22%', size: 150 } },
-  p2: { name: 'Pond P2', coverage: 74, chlorophyll: 0.52, imagery: 3.30, ai: 3.62, capture: 'Satellite optical', pos: { left: '40%', top: '46%', size: 150 } },
-  p3: { name: 'Pond P3', coverage: 48, chlorophyll: 0.29, imagery: 2.60, ai: 3.05, capture: 'Drone multispectral', pos: { left: '64%', top: '20%', size: 150 } },
-};
-
-function healthColor(h) {
-  const stops = [
-    [100, [47, 190, 134]], [85, [63, 203, 152]], [70, [183, 195, 75]],
-    [55, [217, 138, 61]], [35, [178, 85, 47]], [0, [122, 59, 51]],
-  ];
-  h = Math.max(0, Math.min(100, h));
-  for (let i = 0; i < stops.length - 1; i++) {
-    const [h1, c1] = stops[i], [h2, c2] = stops[i + 1];
-    if (h <= h1 && h >= h2) {
-      const t = (h - h2) / (h1 - h2 || 1);
-      const c = c1.map((v, idx) => Math.round(v * t + c2[idx] * (1 - t)));
-      return `rgb(${c[0]},${c[1]},${c[2]})`;
-    }
-  }
-  return `rgb(${stops[stops.length - 1][1].join(',')})`;
-}
-
-function agreementFor(p) {
-  const diff = Math.abs(p.imagery - p.ai);
-  const avg = (p.imagery + p.ai) / 2;
-  return Math.max(0, 100 - (diff / avg * 100));
-}
-
-function confidenceLabel(agreement) {
-  if (agreement >= 93) return { label: 'High', cls: 'conf-high' };
-  if (agreement >= 85) return { label: 'Medium', cls: 'conf-medium' };
-  return { label: 'Low', cls: 'conf-low' };
-}
+const fixed = (value, digits = 3) => Number(value || 0).toFixed(digits);
 
 export default function SatelliteVerification() {
-  const [selectedId, setSelectedId] = useState('p1');
+  const [layer, setLayer] = useState('true color');
+  const { snapshot, pondOptions, activePondId, setActivePondId, usingFallback } = usePondData();
+  const visual = deriveVisualState(snapshot);
+  const satellite = snapshot.raw?.results?.satellite || {};
+  const reflectance = snapshot.raw?.source_data?.satellite_data || {};
+  const imageConfidence = Math.round(snapshot.image.confidence * 100);
+  const ext = snapshot.image.filename?.split('.').pop()?.toLowerCase();
+  const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+  const imageSource = snapshot.image.base64 ? `data:${mime};base64,${snapshot.image.base64}` : '/images/ghibli_algae_pond.png';
 
-  const selectedPond = SAT_PONDS[selectedId];
-  const agreement = agreementFor(selectedPond);
-  const conf = confidenceLabel(agreement);
-
-  const agreements = Object.values(SAT_PONDS).map(agreementFor);
-  const farmAgreement = (agreements.reduce((a, b) => a + b, 0) / agreements.length).toFixed(1);
-
-  return (
-    <>
-      <Scene>
-        <div className="veil"></div>
-      </Scene>
-      <Navigation />
-      
-      <div className="page">
-        <div className="summary-strip glass">
-          <div className="s-item">Last satellite pass<b>2h 14m ago</b></div>
-          <div className="s-item">Imagery source<b>Sentinel-2 + drone multispectral (simulated)</b></div>
-          <div className="s-item">Farm-wide agreement<b>{farmAgreement}%</b></div>
-          <div className="spacer"></div>
-          <div className="badge">Imagery cross-check layer</div>
-        </div>
-
-        <div id="mapCard" className="glass">
-          <div id="terrain"></div>
-          <div className="grid-overlay"></div>
-          <div className="scan-line"></div>
-          <div className="pass-badge"><span className="liveDot"></span>Last pass 2h 14m ago (simulated)</div>
-          <div className="compass">N</div>
-          <div className="coord-tag">23.02°N, 72.57°E</div>
-          <div className="scale-bar"><span className="bar"></span>250 m</div>
-          
-          <div id="pondsOnMap">
-            {Object.entries(SAT_PONDS).map(([id, p]) => (
-              <div 
-                key={id} 
-                className={`pond-boundary ${id === selectedId ? 'selected' : ''}`}
-                style={{
-                  left: p.pos.left, 
-                  top: p.pos.top, 
-                  width: `${p.pos.size}px`, 
-                  height: `${p.pos.size * 0.8}px`
-                }}
-                onClick={() => setSelectedId(id)}
-              >
-                <div className="pond-fill" style={{ background: `radial-gradient(circle at 35% 30%, ${healthColor(p.coverage)}, rgba(10,50,40,0.85))` }}></div>
-                <div className="pond-tag">{p.name}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div id="panel" className="glass">
-          <h3 id="panelName">{selectedPond.name}</h3>
-          <div className="sub">Prototype imagery cross-check</div>
-
-          <div className="agree-hero">
-            <div className="aval">{agreement.toFixed(1)}%</div>
-            <div className="alabel">simulated agreement (AI vs. imagery)</div>
-            <div className={`aconf ${conf.cls}`}>Prototype verification confidence: {conf.label}</div>
-          </div>
-
-          <div className="est-compare">
-            <div className="est-box"><div className="elabel">AI estimate</div><div className="eval">{selectedPond.ai.toFixed(2)} g/L</div></div>
-            <div className="est-box"><div className="elabel">Imagery estimate</div><div className="eval">{selectedPond.imagery.toFixed(2)} g/L</div></div>
-          </div>
-
-          <div className="metric-row"><span>Algae coverage</span><span>{selectedPond.coverage}%</span></div>
-          <div className="metric-row"><span>Chlorophyll / vegetation proxy</span><span>{selectedPond.chlorophyll.toFixed(2)}</span></div>
-          <div className="metric-row"><span>Imagery resolution</span><span>3 m / px</span></div>
-          <div className="metric-row"><span>Capture method</span><span>{selectedPond.capture}</span></div>
-
-          <div className="source-note">Prototype imagery estimates are derived independently for spatial cross-checking. Disagreement between AI and imagery reduces verification confidence in the MRV system.</div>
-        </div>
-      </div>
-
-      <div className="demo-data-badge" aria-label="Prototype using simulated data">PROTOTYPE • SIMULATED DATA</div>
-    </>
-  );
+  return <div className="page remote-page">
+    <header className="page-heading"><div><span className="eyebrow">Remote verification - live evidence</span><h1>Ground truth, viewed from above.</h1><p>Image classification, remote reflectance and in-pond sensing from the same API record.</p></div><div className="remote-actions"><select className="quiet-select" value={activePondId} onChange={e => setActivePondId(e.target.value)}>{pondOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select><div className="segmented">{['true color','chlorophyll','turbidity'].map(x => <button key={x} className={layer === x ? 'active' : ''} onClick={() => setLayer(x)}>{x}</button>)}</div></div></header>
+    {usingFallback && <div className="data-notice notice-fallback"><span>DEMO EVIDENCE</span><p>Process a prediction burst to load the mapped pond image and remote model results.</p></div>}
+    <div className="remote-grid">
+      <section className="satellite-card">
+        <div className={`satellite-image satellite-${layer.replace(' ', '-')}`}><img src={imageSource} alt="Current pond visual evidence"/><div className="scan-line"/><span className="north-mark">N</span><div className="pond-target"><i/><i/><i/></div><div className="image-caption"><span>{snapshot.image.filename || 'Fallback pond scene'}</span><b>{new Date(snapshot.observed_at).toLocaleString()}</b></div></div>
+        <div className="evidence-footer"><div><span>Dataset</span><b>{reflectance.dataset || 'pending'}</b></div><div><span>Latitude</span><b>{fixed(reflectance.latitude, 2)}</b></div><div><span>Longitude</span><b>{fixed(reflectance.longitude, 2)}</b></div><div><span>Stream row</span><b>{snapshot.stream_row}</b></div></div>
+      </section>
+      <aside className="evidence-rail">
+        <section className={`panel classification-card classification-${visual.healthMode}`}><span className="eyebrow">Visual condition model</span><div className="classification-head"><div><h2>{snapshot.image.state}</h2><p>{snapshot.image.base64 ? 'Live mapped image classified.' : 'Awaiting API image evidence.'}</p></div><div className="confidence-ring" style={{'--confidence':`${imageConfidence}%`}}><span>{imageConfidence}<small>%</small></span></div></div><div className="evidence-bars"><label><span>Model confidence</span><b>{imageConfidence}%</b><i><em style={{width:`${imageConfidence}%`}}/></i></label><label><span>Uncertainty</span><b>{100-imageConfidence}%</b><i><em className="uncertainty" style={{width:`${100-imageConfidence}%`}}/></i></label></div></section>
+        <section className="panel spectral-card"><div className="panel-title"><div><span className="eyebrow">Remote model signals</span><h2>Spectral evidence</h2></div><span>API result</span></div><div className="spectral-list"><article><span>Chlorophyll-a</span><b>{fixed(satellite.chlorophyll_a ?? snapshot.dashboard.chlorophyll_a, 1)}</b><small>ug/L model estimate</small></article><article><span>Turbidity</span><b>{fixed(satellite.turbidity ?? snapshot.dashboard.turbidity, 1)}</b><small>NTU model estimate</small></article><article><span>Red edge 1</span><b>{fixed(reflectance.RE1, 4)}</b><small>Surface reflectance</small></article><article><span>Green band</span><b>{fixed(reflectance.green, 4)}</b><small>Surface reflectance</small></article></div></section>
+      </aside>
+    </div>
+    <section className={`verification-strip verify-${visual.healthMode}`}><div><span className="verify-icon">{visual.healthMode === 'critical' ? '!' : 'OK'}</span><p><b>{visual.healthMode === 'critical' ? 'Cross-source risk requires attention' : 'Cross-source evidence loaded'}</b>{snapshot.insights.find(item => item.code.includes('VISUAL'))?.message || 'Image, satellite and sensor evidence are available in the current prediction record.'}</p></div><div className="verification-mini"><LivingPond snapshot={snapshot} visual={visual} compact showCallouts={false}/></div></section>
+  </div>;
 }

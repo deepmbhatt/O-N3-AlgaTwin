@@ -12,14 +12,13 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Navigate to="/command-center.html" />} />
-        <Route path="/command-center.html" element={<CommandCenter />} />
-        <Route path="/pond-digital-twin.html" element={<PondDigitalTwin />} />
-        <Route path="/ai-intelligence.html" element={<AIIntelligence />} />
-        <Route path="/satellite-verification.html" element={<SatelliteVerification />} />
-        <Route path="/scenario-simulator.html" element={<ScenarioSimulator />} />
-        <Route path="/carbon-mrv.html" element={<CarbonMRV />} />
-        <Route path="/reports.html" element={<Reports />} />
+        <Route path="/" element={<CommandCenter />} />
+        <Route path="/pond-digital-twin" element={<PondDigitalTwin />} />
+        <Route path="/ai-intelligence" element={<AIIntelligence />} />
+        <Route path="/satellite-verification" element={<SatelliteVerification />} />
+        <Route path="/scenario-simulator" element={<ScenarioSimulator />} />
+        <Route path="/carbon-mrv" element={<CarbonMRV />} />
+        <Route path="/reports" element={<Reports />} />
       </Routes>
     </Router>
   );

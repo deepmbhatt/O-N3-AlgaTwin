@@ -2,6 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import Scene from '../components/Scene';
 import Navigation from '../components/Navigation';
 
+function useBodyOverflowHidden() {
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+}
+
 const BASELINE = { co2: 52, temp: 27.6, nutrient: 35, light: 620, ph: 6.68, harvest: 14 };
 const IDEAL = { co2: 132, temp: 24.5, nutrient: 88, light: 780, ph: 7.05 };
 const CURRENT = { health: 38, biomass: 3.05, co2capture: 23, anomalyRisk: 87 };
@@ -112,6 +119,7 @@ const PondVisual = ({ health }) => {
 };
 
 export default function ScenarioSimulator() {
+  useBodyOverflowHidden();
   const [params, setParams] = useState({ ...BASELINE });
   const [isRunning, setIsRunning] = useState(false);
   const [statusText, setStatusText] = useState('Adjust parameters, then run the scenario.');

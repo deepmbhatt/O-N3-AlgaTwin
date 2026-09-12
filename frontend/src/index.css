@@ -14,15 +14,20 @@
     --amber:#D98A3D;
     --orange:#C96A2E;
     --red:#B2422F;
+    --tag-measured:#0F5850;
+    --tag-predicted:#3D6E8A;
+    --tag-estimated:#D98A3D;
+    --tag-verified:#2F7D5A;
   }
   *{box-sizing:border-box;}
   html,body{
-    margin:0; padding:0; height:100%;
+    margin:0; padding:0; min-height:100%;
     font-family:'Inter',sans-serif;
     color:var(--ink);
     background:var(--teal-deep);
-    overflow:hidden;
   }
+  /* Command center uses fixed fullscreen layout — its own page sets overflow via the .sim-grid/fixed elements */
+  body.overflow-hidden{ overflow:hidden; }
   h1,h2,h3,.num,.mono{font-family:'Space Grotesk',sans-serif;}
 
   /* ---------- SCENE ---------- */

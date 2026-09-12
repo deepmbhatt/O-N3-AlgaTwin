@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Scene from '../components/Scene';
 import Navigation from '../components/Navigation';
 
+function useBodyOverflowHidden() {
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+}
+
 const PONDS = {
   p1: {
     name: 'Pond P1', state: 'healthy', health: 96,
@@ -84,6 +91,7 @@ function buildNarrative(p) {
 }
 
 export default function PondDigitalTwin() {
+  useBodyOverflowHidden();
   const [selected, setSelected] = useState('p3');
   const [bubbles, setBubbles] = useState([]);
 

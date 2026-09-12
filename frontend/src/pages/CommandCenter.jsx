@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import Scene from '../components/Scene';
 import Navigation from '../components/Navigation';
 
+// Lock body scroll for this fixed-layout page
+function useBodyOverflowHidden() {
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+}
+
 const initialPonds = {
   p1: { name: 'Pond P1', health: 96, activity: 0.92, temp: 24.3, ph: 7.10, do: 8.3, turb: 11, co2in: 122, co2out: 16, light: 780, nutrient: 'Optimal', state: 'healthy' },
   p2: { name: 'Pond P2', health: 94, activity: 0.88, temp: 24.6, ph: 7.05, do: 8.1, turb: 13, co2in: 119, co2out: 18, light: 762, nutrient: 'Optimal', state: 'healthy' },
@@ -46,6 +54,7 @@ function dotColor(kind) { return ringColor(kind) || '#2FBE86'; }
 const DEMO_TARGET = 'p3';
 
 export default function CommandCenter() {
+  useBodyOverflowHidden();
   const [night, setNight] = useState(false);
   const [ponds, setPonds] = useState(initialPonds);
   const [selectedPond, setSelectedPond] = useState('p1');

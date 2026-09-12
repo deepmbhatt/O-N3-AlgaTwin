@@ -2,11 +2,10 @@ const express = require("express");
 const router = express.Router();
 const pondController = require("../../controllers/pond.controller");
 
-// Baseline Stream Routes
-router.get("/latest", pondController.getLatestMetrics);
-router.get("/history", pondController.getHistoricalData);
+// SSE stream — frontend connects here for live prediction carousel
+router.get("/stream", pondController.streamLiveData);
 
-// Scenario Simulator Route
+// Scenario Simulator — user submits custom parameters for custom predictions
 router.post("/simulate", pondController.runSimulation);
 
 module.exports = router;

@@ -1,42 +1,99 @@
 const cron = require("node-cron");
 const axios = require("axios");
-const PondMetric = require("../models/PondMetric");
+
+const AI_SERVICE_URL = process.env.ALGATWIN_URL || "http://localhost:8000";
+const AI_API_KEY = process.env.ALGATWIN_API_KEY || "";
+
+// Connected SSE clients
+const sseClients = new Set();
+
+/**
+ * Register a new SSE client (called from the /api/pond/stream route).
+ * Returns a cleanup function to remove the client on disconnect.
+ */
+function addSseClient(res) {
+  sseClients.add(res);
+  return () => sseClients.delete(res);
+}
+
+/**
+ * Broadcast a JSON event to every connected SSE client.
+ */
+function broadcast(eventName, data) {
+  const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const client of sseClients) {
+    client.write(payload);
+  }
+}
+
+// Simple in-process lock to prevent overlapping /predict calls.
+let isRunning = false;
 
 const startPondCronJob = () => {
-  // "*/5 * * * *" runs every 5 minutes.
-  // (Change to "*/1 * * * *" during hackathon testing for faster updates)
   cron.schedule("*/5 * * * *", async () => {
+    if (isRunning) {
+      console.log("[CRON] Previous predict job still running — skipping this tick.");
+      return;
+    }
+    isRunning = true;
+
     try {
-      console.log(`[CRON] Fetching live pond data from AI service at ${new Date().toISOString()}`);
+      console.log(`[CRON] Calling POST /predict at ${new Date().toISOString()}`);
 
-      // 1. Hit the AI Developer's service to get the latest pond record and metrics
-      // Replace this URL with Deep's actual local/ngrok endpoint
-      const AI_SERVICE_URL = "http://localhost:8000/api/live-pond-record"; 
-      
-      const aiResponse = await axios.get(AI_SERVICE_URL);
-      const liveData = aiResponse.data;
-
-      // 2. Fallback validation to ensure the AI service didn't send an empty payload
-      if (!liveData || !liveData.sensorData || !liveData.aiMetrics) {
-         console.warn("[CRON] Warning: Malformed or missing data from AI service.");
-         return; 
+      const headers = { "Content-Type": "application/json" };
+      if (AI_API_KEY) {
+        headers["X-API-Key"] = AI_API_KEY;
       }
 
-      // 3. Save this dynamically fetched data to your database as the true timeline
-      const newRecord = await PondMetric.create({
-        isSimulation: false, // Ensures this is part of the official MRV history
-        sensorData: liveData.sensorData,
-        aiMetrics: liveData.aiMetrics
+      const aiResponse = await axios.post(
+        `${AI_SERVICE_URL}/predict`,
+        {
+          batch_size: 3,
+          include_images: true,
+          return_image_base64: true
+        },
+        {
+          headers,
+          timeout: 30000
+        }
+      );
+
+      // AI response: { data: [...predictionRecords], cursor: {...}, message: "..." }
+      const predictions = aiResponse.data.data;
+      const cursor = aiResponse.data.cursor;
+
+      if (!Array.isArray(predictions) || predictions.length === 0) {
+        console.warn("[CRON] /predict returned no records. Skipping broadcast.");
+        return;
+      }
+
+      // Push the entire burst to all connected frontends via SSE
+      broadcast("pond-update", {
+        predictions,
+        cursor,
+        receivedAt: new Date().toISOString()
       });
 
-      console.log(`[CRON] Successfully saved new baseline tick. Record ID: ${newRecord._id}`);
+      console.log(
+        `[CRON] Broadcast ${predictions.length} prediction(s) to ${sseClients.size} client(s). ` +
+        `Cursor → row ${cursor?.next_row}, cycle ${cursor?.cycle}.`
+      );
 
     } catch (error) {
-      console.error("[CRON] Failed to fetch or save baseline data:", error.message);
+      if (error.response) {
+        console.error(
+          `[CRON] AI service error ${error.response.status}:`,
+          error.response.data?.detail || error.response.data
+        );
+      } else {
+        console.error("[CRON] Failed to reach AI service:", error.message);
+      }
+    } finally {
+      isRunning = false;
     }
   });
 
-  console.log("[CRON] Pond Metric Fetcher Initialized (Pinging AI Service every 5 minutes)");
+  console.log("[CRON] Pond data pump initialized (POST /predict every 5 minutes → SSE broadcast)");
 };
 
-module.exports = startPondCronJob;
+module.exports = { startPondCronJob, addSseClient, sseClients };

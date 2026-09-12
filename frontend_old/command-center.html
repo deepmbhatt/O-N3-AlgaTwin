@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Verdance — Command Center</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Verdance Command Center — real-time algae farm monitoring prototype for HackOut'26.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal-deep:#0B3D3A;
+    --teal-mid:#0F5850;
+    --algae:#2FBE86;
+    --aqua:#7FE0CC;
+    --sun:#FFC876;
+    --paper:#F4F6F3;
+    --ink:#0E2622;
+    --ink-soft:#3E5850;
+    --glass-bg:rgba(244,246,243,0.55);
+    --glass-border:rgba(255,255,255,0.45);
+    --glass-shadow:0 12px 40px rgba(11,61,58,0.25);
+    --amber:#D98A3D;
+    --orange:#C96A2E;
+    --red:#B2422F;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    font-family:'Inter',sans-serif;
+    color:var(--ink);
+    background:var(--teal-deep);
+    overflow:hidden;
+  }
+  h1,h2,h3,.num,.mono{font-family:'Space Grotesk',sans-serif;}
+
+  /* ---------- SCENE ---------- */
+  .scene{
+    position:fixed; inset:0;
+    overflow:hidden;
+  }
+  .sky{
+    position:absolute; inset:0;
+    background:linear-gradient(180deg,#BFE7E0 0%, #DCEFCB 38%, #EDF3CF 60%, #F4EBC9 100%);
+    transition:background 2.5s ease;
+  }
+  .scene.night .sky{
+    background:linear-gradient(180deg,#0A2036 0%, #123249 45%, #1D4256 75%, #2A4F52 100%);
+  }
+  .sun{
+    position:absolute; top:9%; left:68%;
+    width:130px; height:130px; border-radius:50%;
+    background:radial-gradient(circle at 40% 35%, #FFF3D8, var(--sun) 55%, rgba(255,200,118,0) 72%);
+    box-shadow:0 0 90px 40px rgba(255,200,118,0.45);
+    transition:all 2.5s ease;
+    animation:sunDrift 40s ease-in-out infinite alternate;
+  }
+  .scene.night .sun{
+    left:22%; top:12%;
+    background:radial-gradient(circle at 40% 35%, #EFF6FA, #C9D9E4 55%, rgba(201,217,228,0) 72%);
+    box-shadow:0 0 60px 22px rgba(180,205,220,0.35);
+  }
+  @keyframes sunDrift{ from{transform:translateY(0);} to{transform:translateY(10px);} }
+
+  .cloud{
+    position:absolute; background:rgba(255,255,255,0.65); border-radius:50%;
+    filter:blur(2px);
+    animation:drift linear infinite;
+  }
+  @keyframes drift{ from{transform:translateX(0);} to{transform:translateX(120px);} }
+
+  .hills{
+    position:absolute; left:0; right:0; bottom:0; height:46%;
+    background:linear-gradient(180deg, rgba(23,90,72,0.0), rgba(14,60,48,0.35));
+  }
+  .hill{
+    position:absolute; bottom:-10%; width:70%; height:60%;
+    border-radius:50% 50% 0 0 / 100% 100% 0 0;
+  }
+  .hill.h1{ left:-15%; background:#1E6E58; opacity:0.55; }
+  .hill.h2{ left:35%; background:#175A48; opacity:0.7; height:45%; }
+
+  /* ---------- PONDS ---------- */
+  .ponds-layer{
+    position:absolute; left:50%; bottom:9%; transform:translateX(-50%);
+    display:flex; gap:70px; align-items:flex-end;
+  }
+  .pond-wrap{
+    position:relative; width:220px; height:180px; cursor:pointer;
+    transition:transform .5s ease;
+  }
+  .pond-wrap:hover{ transform:translateY(-4px); }
+  .pond-wrap.selected{ transform:translateY(-8px) scale(1.03); }
+
+  .pond-tint{
+    position:absolute; inset:-40px;
+    border-radius:50%;
+    opacity:0; pointer-events:none;
+    transition:opacity 1.6s ease, background 1.6s ease;
+    filter:blur(18px);
+  }
+
+  .pond{
+    position:absolute; inset:0;
+    border-radius:58% 42% 53% 47% / 48% 58% 42% 52%;
+    overflow:hidden;
+    box-shadow:0 20px 34px rgba(8,40,32,0.35), inset 0 -14px 26px rgba(0,0,0,0.18);
+    transition:background 1.8s ease;
+    animation:pondBreathe 9s ease-in-out infinite;
+  }
+  @keyframes pondBreathe{
+    0%,100%{ border-radius:58% 42% 53% 47% / 48% 58% 42% 52%; }
+    50%{ border-radius:52% 48% 46% 54% / 55% 45% 55% 45%; }
+  }
+  .pond-surface{
+    position:absolute; inset:0;
+    background:repeating-linear-gradient(120deg, rgba(255,255,255,0.16) 0 12px, rgba(255,255,255,0) 12px 26px);
+    mix-blend-mode:overlay;
+    animation:shimmer 6s linear infinite;
+  }
+  @keyframes shimmer{ from{background-position:0 0;} to{background-position:220px 90px;} }
+
+  .patches{
+    position:absolute; inset:0; opacity:0; transition:opacity 1.6s ease;
+    background:
+      radial-gradient(ellipse 60px 34px at 30% 65%, rgba(90,55,35,0.55), transparent 70%),
+      radial-gradient(ellipse 46px 28px at 72% 40%, rgba(90,55,35,0.45), transparent 70%);
+  }
+
+  .bubbles{ position:absolute; inset:0; overflow:hidden; }
+  .bubble{
+    position:absolute; bottom:-10px; border-radius:50%;
+    background:rgba(255,255,255,0.75);
+    animation:rise linear infinite;
+  }
+  @keyframes rise{
+    0%{ transform:translateY(0) scale(1); opacity:0; }
+    12%{ opacity:.85; }
+    100%{ transform:translateY(-170px) scale(1.3); opacity:0; }
+  }
+
+  .pond-ring{
+    position:absolute; inset:-14px; border-radius:50%;
+    border:2px solid transparent; opacity:0; pointer-events:none;
+    transition:opacity 1s ease, border-color 1s ease;
+  }
+  .pond-wrap.pulse .pond-ring{ animation:pulseRing 2.6s ease-out infinite; }
+  .pond-wrap.pulse-fast .pond-ring{ animation:pulseRing 1.5s ease-out infinite; }
+  @keyframes pulseRing{
+    0%{ transform:scale(0.94); opacity:0.75; }
+    100%{ transform:scale(1.18); opacity:0; }
+  }
+
+  .pond-label{
+    position:absolute; left:50%; bottom:-38px; transform:translateX(-50%);
+    text-align:center; white-space:nowrap;
+  }
+  .pond-label .pname{ display:block; font-weight:600; font-size:14px; color:#F4F6F3; letter-spacing:.2px;}
+  .pond-label .phealth{ display:block; font-size:12px; color:rgba(244,246,243,0.75); margin-top:2px; }
+
+  /* ---------- NAV RAIL ---------- */
+  .rail{
+    position:fixed; top:50%; left:22px; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:6px;
+    padding:12px 8px; border-radius:22px;
+    background:var(--glass-bg); border:1px solid var(--glass-border);
+    backdrop-filter:blur(16px); box-shadow:var(--glass-shadow);
+    z-index:20;
+  }
+  .rail .brand{
+    width:38px; height:38px; margin-bottom:8px; border-radius:12px;
+    background:linear-gradient(135deg,var(--algae),var(--teal-mid));
+    display:flex; align-items:center; justify-content:center;
+    text-decoration:none;
+  }
+  .rail .brand svg{ width:20px; height:20px; }
+  .rail-item{
+    position:relative; width:38px; height:38px; border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--ink-soft); background:transparent; border:none; cursor:pointer;
+    transition:background .25s ease, color .25s ease;
+    text-decoration:none;
+  }
+  .rail-item svg{ width:18px; height:18px; }
+  .rail-item:hover{ background:rgba(255,255,255,0.5); }
+  .rail-item.active{ background:var(--teal-mid); color:#fff; }
+  .rail-item:focus-visible{
+    outline:2px solid var(--algae); outline-offset:2px;
+  }
+  .rail-item::after{
+    content:attr(data-label);
+    position:absolute; left:52px; top:50%; transform:translateY(-50%);
+    background:var(--teal-deep); color:#fff; font-size:12px; font-family:'Inter';
+    padding:5px 10px; border-radius:8px; white-space:nowrap;
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+    z-index:50;
+  }
+  .rail-item:hover::after{ opacity:1; }
+
+  /* ---------- GLASS PANELS ---------- */
+  .glass{
+    background:var(--glass-bg);
+    border:1px solid var(--glass-border);
+    backdrop-filter:blur(18px);
+    box-shadow:var(--glass-shadow);
+    border-radius:20px;
+  }
+
+  .kpi-bar{
+    position:fixed; top:22px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:stretch; gap:0;
+    padding:14px 10px; z-index:20;
+  }
+  .kpi{
+    padding:4px 22px; text-align:left; position:relative;
+  }
+  .kpi + .kpi::before{
+    content:''; position:absolute; left:0; top:8px; bottom:8px; width:1px;
+    background:rgba(14,38,34,0.12);
+  }
+  .kpi .label{ font-size:11.5px; color:var(--ink-soft); font-weight:500; }
+  .kpi .value{ font-size:22px; font-weight:600; margin-top:2px; }
+  .kpi.hero .value{ font-size:28px; color:var(--teal-mid); }
+  .kpi .unit{ font-size:13px; font-weight:500; color:var(--ink-soft); margin-left:3px;}
+
+  .env-panel{
+    position:fixed; top:22px; right:22px; width:250px;
+    padding:18px; z-index:20;
+    transition:transform .3s ease;
+  }
+  .env-panel h3{ margin:0 0 4px; font-size:15px; }
+  .env-panel .sub{ font-size:12px; color:var(--ink-soft); margin-bottom:12px; }
+  .env-row{ display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-top:1px solid rgba(14,38,34,0.08); }
+  .env-row span:first-child{ color:var(--ink-soft); }
+  .env-row span:last-child{ font-weight:600; }
+
+  .demo-panel{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+    padding:14px 18px; z-index:20;
+    display:flex; align-items:center; gap:10px;
+  }
+  .demo-panel .dtitle{ font-size:12px; color:var(--ink-soft); margin-right:6px; white-space:nowrap; }
+  .demo-btn{
+    font-family:'Inter'; font-size:12.5px; font-weight:500;
+    padding:8px 13px; border-radius:12px; border:1px solid rgba(14,38,34,0.14);
+    background:rgba(255,255,255,0.5); color:var(--ink); cursor:pointer;
+    transition:all .2s ease;
+  }
+  .demo-btn:hover{ background:rgba(255,255,255,0.85); }
+  .demo-btn.active{ background:var(--teal-mid); color:#fff; border-color:var(--teal-mid); }
+  .demo-btn:focus-visible{ outline:2px solid var(--algae); outline-offset:2px; }
+
+  .warning-card{
+    position:fixed; z-index:25; width:290px; padding:16px 18px;
+    left:50%; bottom:100px; transform:translateX(120px) translateY(20px);
+    opacity:0; pointer-events:none;
+    transition:opacity .5s ease, transform .5s ease;
+  }
+  .warning-card.show{ opacity:1; transform:translateX(120px) translateY(0); pointer-events:auto; }
+  .warning-card .wtitle{ font-size:14px; font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:8px;}
+  .warning-card .wdot{ width:9px; height:9px; border-radius:50%; flex:none; }
+  .warning-card p{ margin:0; font-size:12.8px; line-height:1.5; color:var(--ink-soft); }
+
+  /* ---------- DEMO DATA BADGE ---------- */
+  .demo-data-badge{
+    position:fixed; bottom:22px; left:80px; z-index:30;
+    padding:5px 12px; border-radius:20px;
+    background:rgba(11,61,58,0.72); border:1px solid rgba(127,224,204,0.25);
+    backdrop-filter:blur(10px);
+    font-size:10.5px; font-weight:600; letter-spacing:.4px;
+    color:rgba(127,224,204,0.85);
+    pointer-events:none;
+    font-family:'Inter',sans-serif;
+  }
+
+  @media (max-width:1100px){
+    .env-panel{ display:none; }
+    .kpi{ padding:4px 14px; }
+    .kpi .value{ font-size:18px; }
+    .demo-panel{ flex-wrap:wrap; justify-content:center; bottom:10px; }
+  }
+  @media (max-width:768px){
+    .rail{ left:10px; padding:8px 6px; }
+    .kpi-bar{ top:10px; }
+    .kpi{ padding:4px 10px; }
+    .kpi.hero .value{ font-size:20px; }
+    .demo-panel{ left:0; right:0; transform:none; border-radius:0; bottom:0; border-radius:16px 16px 0 0; }
+    .ponds-layer{ gap:30px; }
+    .pond-wrap{ width:150px; height:120px; }
+    .demo-data-badge{ left:60px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene">
+  <div class="sky"></div>
+  <div class="sun"></div>
+  <div class="hills">
+    <div class="hill h1"></div>
+    <div class="hill h2"></div>
+  </div>
+  <div id="clouds"></div>
+
+  <div class="ponds-layer" id="pondsLayer">
+    <!-- ponds injected by JS -->
+  </div>
+</div>
+
+<nav class="rail" aria-label="Main navigation">
+  <a class="brand" href="command-center.html" aria-label="Verdance home">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 10 5 14a7 7 0 0 0 14 0c0-4-3-8-7-12z" fill="#F4F6F3"/></svg>
+  </a>
+  <a class="rail-item" data-label="Command Center" href="command-center.html" aria-label="Command Center">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 13l2.5 2.5L16 9"/></svg>
+  </a>
+  <a class="rail-item" data-label="Pond Digital Twin" href="pond-digital-twin.html" aria-label="Pond Digital Twin">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>
+  </a>
+  <a class="rail-item" data-label="AI Intelligence" href="ai-intelligence.html" aria-label="AI Intelligence">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/><circle cx="12" cy="12" r="4"/></svg>
+  </a>
+  <a class="rail-item" data-label="Satellite Verification" href="satellite-verification.html" aria-label="Satellite Verification">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l6 6M13 3l8 8-3 3-8-8zM7 13l4 4-3 3-4-4z"/></svg>
+  </a>
+  <a class="rail-item" data-label="Scenario Simulator" href="scenario-simulator.html" aria-label="Scenario Simulator">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M4 10l6-6 6 3 4-3" /></svg>
+  </a>
+  <a class="rail-item" data-label="Carbon MRV" href="carbon-mrv.html" aria-label="Carbon MRV">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+  </a>
+  <a class="rail-item" data-label="Reports" href="reports.html" aria-label="Reports">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h6M9 16h6"/></svg>
+  </a>
+  <button class="rail-item" id="nightToggle" data-label="Toggle time of day" aria-label="Toggle day/night mode">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+  </button>
+</nav>
+
+<div class="kpi-bar glass" role="region" aria-label="Farm KPIs">
+  <div class="kpi hero">
+    <div class="label">CO₂ Capture Estimate Today</div>
+    <div class="value"><span class="num" id="kpiCo2">0</span><span class="unit">kg</span></div>
+  </div>
+  <div class="kpi">
+    <div class="label">Farm Health Score</div>
+    <div class="value"><span class="num" id="kpiHealth">0</span><span class="unit">%</span></div>
+  </div>
+  <div class="kpi">
+    <div class="label">Carbon Confidence Score</div>
+    <div class="value"><span class="num" id="kpiConf">0</span><span class="unit">%</span></div>
+  </div>
+  <div class="kpi">
+    <div class="label">Biomass Estimate</div>
+    <div class="value"><span class="num" id="kpiBiomass">0.0</span><span class="unit">g/L</span></div>
+  </div>
+  <div class="kpi">
+    <div class="label">Active Anomalies</div>
+    <div class="value"><span class="num" id="kpiAnomalies">0</span></div>
+  </div>
+</div>
+
+<div class="env-panel glass" role="region" aria-label="Environmental sensor readings">
+  <h3 id="envPondName">Pond P1</h3>
+  <div class="sub">Sensor readings (simulated)</div>
+  <div class="env-row"><span>Temperature</span><span id="envTemp">–</span></div>
+  <div class="env-row"><span>pH</span><span id="envPh">–</span></div>
+  <div class="env-row"><span>Dissolved oxygen</span><span id="envDo">–</span></div>
+  <div class="env-row"><span>Turbidity</span><span id="envTurb">–</span></div>
+  <div class="env-row"><span>CO₂ inlet / outlet</span><span id="envCo2">–</span></div>
+  <div class="env-row"><span>Light intensity</span><span id="envLight">–</span></div>
+  <div class="env-row"><span>Nutrient status</span><span id="envNutrient">–</span></div>
+</div>
+
+<div class="demo-panel glass" role="region" aria-label="Demo scenario controls">
+  <span class="dtitle">Demo scenarios — Pond P3</span>
+  <button class="demo-btn active" data-state="healthy" title="Apply healthy baseline scenario">Healthy</button>
+  <button class="demo-btn" data-state="mild" title="Apply mild stress scenario">Mild Stress</button>
+  <button class="demo-btn" data-state="nutrient" title="Apply nutrient stress scenario">Nutrient Stress</button>
+  <button class="demo-btn" data-state="heat" title="Apply high temperature scenario">High Temperature</button>
+  <button class="demo-btn" data-state="co2fail" title="Apply CO₂ supply failure scenario">CO₂ Supply Failure</button>
+  <button class="demo-btn" data-state="critical" title="Apply critical anomaly scenario">Critical Anomaly</button>
+</div>
+
+<div class="warning-card glass" id="warningCard" role="alert" aria-live="polite">
+  <div class="wtitle"><span class="wdot" id="wdot"></span><span id="wtitle">—</span></div>
+  <p id="wbody">—</p>
+</div>
+
+<div class="demo-data-badge" aria-label="This is a prototype using simulated data">PROTOTYPE · Simulated Data</div>
+
+<script>
+/* =====================================================================
+   DEMO DATA — replace this object with API response when backend is ready
+   ===================================================================== */
+const PONDS = {
+  p1:{ name:'Pond P1', health:96, activity:0.92, temp:24.3, ph:7.10, do:8.3, turb:11, co2in:122, co2out:16, light:780, nutrient:'Optimal', state:'healthy' },
+  p2:{ name:'Pond P2', health:94, activity:0.88, temp:24.6, ph:7.05, do:8.1, turb:13, co2in:119, co2out:18, light:762, nutrient:'Optimal', state:'healthy' },
+  p3:{ name:'Pond P3', health:95, activity:0.90, temp:24.5, ph:7.08, do:8.2, turb:12, co2in:121, co2out:17, light:770, nutrient:'Optimal', state:'healthy' },
+};
+
+const PRESETS = {
+  healthy:{ health:95, activity:0.90, temp:24.5, ph:7.08, do:8.2, turb:12, co2in:121, co2out:17, nutrient:'Optimal', tint:null, pulse:null, message:null },
+  mild:{ health:78, activity:0.62, temp:25.4, ph:6.92, do:7.4, turb:19, co2in:104, co2out:38, nutrient:'Slightly low', tint:'amber', pulse:'pulse',
+    message:{title:'Mild Stress Detected', body:'Productivity is trending 6% below expected behaviour. No intervention required yet — continue monitoring.'} },
+  nutrient:{ health:70, activity:0.52, temp:25.1, ph:6.85, do:7.1, turb:22, co2in:98, co2out:44, nutrient:'Below optimal', tint:'amber', pulse:'pulse',
+    message:{title:'Possible Nutrient Stress', body:'Nutrient concentration has dropped below optimal range. Productivity is currently 12% below expected behaviour.'} },
+  heat:{ health:66, activity:0.48, temp:29.2, ph:6.95, do:6.6, turb:24, co2in:95, co2out:47, nutrient:'Optimal', tint:'orange', pulse:'pulse',
+    message:{title:'High Temperature Stress', body:'Pond temperature has risen 4.7°C above target range, reducing growth efficiency and gas exchange.'} },
+  co2fail:{ health:60, activity:0.14, temp:24.8, ph:7.20, do:5.9, turb:20, co2in:31, co2out:6, nutrient:'Optimal', tint:'orange', pulse:'pulse',
+    message:{title:'CO₂ Supply Disruption', body:'Inlet CO₂ flow has dropped sharply. Absorption rate is critically reduced across this pond.'} },
+  critical:{ health:38, activity:0.08, temp:27.6, ph:6.68, do:5.1, turb:31, co2in:52, co2out:11, nutrient:'Deficient', tint:'red', pulse:'pulse-fast',
+    message:{title:'Critical Anomaly — 87% probability', body:'Biomass productivity has fallen 18%. Possible nutrient stress detected. Estimated 7-day carbon capture impact: −160 kg CO₂ if untreated.'} },
+};
+/* ===================================================================== */
+
+const DEMO_TARGET = 'p3';
+let selectedPond = 'p1';
+
+/* ---------- Helpers ---------- */
+function healthColor(h){
+  const stops = [
+    [100,[47,190,134]], [85,[63,203,152]], [70,[183,195,75]],
+    [55,[217,138,61]], [35,[178,85,47]], [0,[122,59,51]],
+  ];
+  h = Math.max(0, Math.min(100, h));
+  for(let i=0;i<stops.length-1;i++){
+    const [h1,c1] = stops[i], [h2,c2] = stops[i+1];
+    if(h<=h1 && h>=h2){
+      const t = (h - h2) / (h1 - h2 || 1);
+      const c = c1.map((v,idx)=> Math.round(v*t + c2[idx]*(1-t)));
+      return `rgb(${c[0]},${c[1]},${c[2]})`;
+    }
+  }
+  return `rgb(${stops[stops.length-1][1].join(',')})`;
+}
+function tintColor(kind){
+  return {amber:'rgba(217,138,61,0.55)', orange:'rgba(201,106,46,0.55)', red:'rgba(178,66,47,0.6)'}[kind] || 'transparent';
+}
+function ringColor(kind){
+  return {amber:'#D98A3D', orange:'#C96A2E', red:'#B2422F'}[kind] || 'transparent';
+}
+function dotColor(kind){ return ringColor(kind) || '#2FBE86'; }
+
+/* ---------- Pond elements ---------- */
+const pondsLayer = document.getElementById('pondsLayer');
+const pondEls = {};
+
+Object.keys(PONDS).forEach(id=>{
+  const wrap = document.createElement('div');
+  wrap.className = 'pond-wrap';
+  wrap.dataset.id = id;
+  wrap.setAttribute('role','button');
+  wrap.setAttribute('tabindex','0');
+  wrap.setAttribute('aria-label', PONDS[id].name + ' — click to inspect');
+  wrap.innerHTML = `
+    <div class="pond-tint"></div>
+    <div class="pond-ring"></div>
+    <div class="pond">
+      <div class="pond-surface"></div>
+      <div class="bubbles"></div>
+      <div class="patches"></div>
+    </div>
+    <div class="pond-label">
+      <span class="pname">${PONDS[id].name}</span>
+      <span class="phealth" id="ph-${id}"></span>
+    </div>
+  `;
+  wrap.addEventListener('click', ()=> selectPond(id));
+  wrap.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); selectPond(id); } });
+  pondsLayer.appendChild(wrap);
+  pondEls[id] = wrap;
+
+  for(let i=0;i<10;i++){
+    const b = document.createElement('div');
+    b.className='bubble';
+    const size = 3 + Math.random()*5;
+    b.style.width = size+'px'; b.style.height = size+'px';
+    b.style.left = (10 + Math.random()*80) + '%';
+    b.dataset.baseDur = (3.5 + Math.random()*3).toFixed(2);
+    b.style.animationDelay = (Math.random()*4).toFixed(2)+'s';
+    wrap.querySelector('.bubbles').appendChild(b);
+  }
+});
+
+/* ---------- Animated counter ---------- */
+function animateValue(el, from, to, decimals, duration){
+  if(!el) return;
+  const start = performance.now();
+  function tick(now){
+    const t = Math.min(1, (now-start)/duration);
+    const eased = 1 - Math.pow(1-t, 3);
+    const val = from + (to-from)*eased;
+    el.textContent = val.toFixed(decimals);
+    if(t<1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+let lastKpi = {co2:0, health:0, conf:96, biomass:0};
+
+/* ---------- Render functions ---------- */
+function computeAndRenderKPIs(){
+  const ponds = Object.values(PONDS);
+  const health = ponds.reduce((s,p)=>s+p.health,0)/ponds.length;
+  const co2 = ponds.reduce((s,p)=> s + p.activity*158, 0);
+  const biomass = 2.3 + (health/100)*2.1;
+  const anomalies = ponds.filter(p=>p.state!=='healthy').length;
+  const criticalCount = ponds.filter(p=>p.state==='critical').length;
+  let conf = 97 - anomalies*5 - criticalCount*9;
+  conf = Math.max(52, Math.min(98, conf));
+
+  animateValue(document.getElementById('kpiCo2'), lastKpi.co2, co2, 0, 900);
+  animateValue(document.getElementById('kpiHealth'), lastKpi.health, health, 0, 900);
+  animateValue(document.getElementById('kpiConf'), lastKpi.conf, conf, 0, 900);
+  animateValue(document.getElementById('kpiBiomass'), lastKpi.biomass, biomass, 2, 900);
+  const anomEl = document.getElementById('kpiAnomalies');
+  if(anomEl) anomEl.textContent = anomalies;
+
+  lastKpi = {co2, health, conf, biomass};
+}
+
+function renderPond(id){
+  const p = PONDS[id];
+  if(!p) return;
+  const wrap = pondEls[id];
+  if(!wrap) return;
+  const pondEl = wrap.querySelector('.pond');
+  const tintEl = wrap.querySelector('.pond-tint');
+  const ringEl = wrap.querySelector('.pond-ring');
+  const patchesEl = wrap.querySelector('.patches');
+  const bubbles = wrap.querySelectorAll('.bubble');
+
+  const c = healthColor(p.health);
+  pondEl.style.background = `radial-gradient(circle at 35% 28%, ${c}, ${c} 40%, rgba(10,50,40,0.9) 100%)`;
+
+  const preset = PRESETS[p.state];
+  if(preset && preset.tint){
+    tintEl.style.background = `radial-gradient(circle, ${tintColor(preset.tint)}, transparent 70%)`;
+    tintEl.style.opacity = 1;
+    ringEl.style.borderColor = ringColor(preset.tint);
+    ringEl.style.opacity = 0.9;
+    wrap.classList.remove('pulse','pulse-fast');
+    wrap.classList.add(preset.pulse || 'pulse');
+  } else {
+    tintEl.style.opacity = 0;
+    ringEl.style.opacity = 0;
+    wrap.classList.remove('pulse','pulse-fast');
+  }
+
+  patchesEl.style.opacity = p.health < 45 ? Math.min(1,(45-p.health)/25) : 0;
+
+  bubbles.forEach(b=>{
+    const base = parseFloat(b.dataset.baseDur);
+    const dur = base / Math.max(0.15, p.activity);
+    b.style.animationDuration = dur.toFixed(2)+'s';
+    b.style.opacity = Math.max(0.25, p.activity);
+  });
+
+  const phEl = document.getElementById('ph-'+id);
+  if(phEl) phEl.textContent = Math.round(p.health)+'% health';
+  wrap.classList.toggle('selected', id===selectedPond);
+}
+
+function renderEnv(){
+  const p = PONDS[selectedPond];
+  if(!p) return;
+  const set = (id,val)=>{ const el=document.getElementById(id); if(el) el.textContent=val; };
+  set('envPondName', p.name);
+  set('envTemp', p.temp.toFixed(1)+' °C');
+  set('envPh', p.ph.toFixed(2));
+  set('envDo', p.do.toFixed(1)+' mg/L');
+  set('envTurb', p.turb+' NTU');
+  set('envCo2', p.co2in+' / '+p.co2out+' L/min');
+  set('envLight', p.light+' µmol/m²/s');
+  set('envNutrient', p.nutrient);
+}
+
+function renderWarning(){
+  const p = PONDS[DEMO_TARGET];
+  const preset = p ? PRESETS[p.state] : null;
+  const card = document.getElementById('warningCard');
+  if(!card) return;
+  if(preset && preset.message){
+    const wtitle = document.getElementById('wtitle');
+    const wbody = document.getElementById('wbody');
+    const wdot = document.getElementById('wdot');
+    if(wtitle) wtitle.textContent = preset.message.title;
+    if(wbody) wbody.textContent = preset.message.body;
+    if(wdot) wdot.style.background = dotColor(preset.tint);
+    card.classList.add('show');
+  } else {
+    card.classList.remove('show');
+  }
+}
+
+function selectPond(id){
+  selectedPond = id;
+  Object.keys(PONDS).forEach(renderPond);
+  renderEnv();
+}
+
+function applyDemoState(stateKey){
+  const preset = PRESETS[stateKey];
+  if(!preset) return;
+  const p = PONDS[DEMO_TARGET];
+  Object.assign(p, {
+    health: preset.health, activity: preset.activity, temp: preset.temp, ph: preset.ph,
+    do: preset.do, turb: preset.turb, co2in: preset.co2in, co2out: preset.co2out,
+    nutrient: preset.nutrient, state: stateKey,
+  });
+  document.querySelectorAll('.demo-btn').forEach(b=> b.classList.toggle('active', b.dataset.state===stateKey));
+  if(selectedPond !== DEMO_TARGET) selectPond(DEMO_TARGET);
+  renderPond(DEMO_TARGET);
+  renderEnv();
+  renderWarning();
+  computeAndRenderKPIs();
+}
+
+/* ---------- Event listeners ---------- */
+document.querySelectorAll('.demo-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> applyDemoState(btn.dataset.state));
+});
+
+const nightToggle = document.getElementById('nightToggle');
+if(nightToggle){
+  nightToggle.addEventListener('click', ()=>{
+    document.getElementById('scene').classList.toggle('night');
+  });
+}
+
+/* ---------- Clouds ---------- */
+const cloudsWrap = document.getElementById('clouds');
+if(cloudsWrap){
+  for(let i=0;i<4;i++){
+    const c = document.createElement('div');
+    c.className='cloud';
+    const w = 90+Math.random()*90, h = w*0.4;
+    c.style.width=w+'px'; c.style.height=h+'px';
+    c.style.top = (8+Math.random()*18)+'%';
+    c.style.left = (Math.random()*80)+'%';
+    c.style.animationDuration = (30+Math.random()*30)+'s';
+    c.style.animationDirection = i%2? 'alternate-reverse':'alternate';
+    cloudsWrap.appendChild(c);
+  }
+}
+
+/* ---------- Auto-active nav ---------- */
+(function(){
+  const page = window.location.pathname.split('/').pop() || 'command-center.html';
+  document.querySelectorAll('.rail-item[href]').forEach(a=>{
+    if(a.getAttribute('href') === page) a.classList.add('active');
+    else a.classList.remove('active');
+  });
+})();
+
+/* ---------- Init ---------- */
+Object.keys(PONDS).forEach(renderPond);
+renderEnv();
+renderWarning();
+computeAndRenderKPIs();
+</script>
+</body>
+</html>

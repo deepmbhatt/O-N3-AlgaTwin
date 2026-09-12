@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Verdance — Pond Digital Twin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Verdance Pond Digital Twin — inspect individual algae pond health, sensor readings, and prototype model forecasts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal-deep:#0B3D3A;
+    --teal-mid:#0F5850;
+    --algae:#2FBE86;
+    --aqua:#7FE0CC;
+    --sun:#FFC876;
+    --ink:#0E2622;
+    --ink-soft:#3E5850;
+    --glass-bg:rgba(244,246,243,0.6);
+    --glass-border:rgba(255,255,255,0.45);
+    --glass-shadow:0 12px 40px rgba(11,61,58,0.25);
+    --amber:#D98A3D;
+    --orange:#C96A2E;
+    --red:#B2422F;
+  }
+  *{box-sizing:border-box;}
+  html,body{ margin:0; height:100%; font-family:'Inter',sans-serif; color:var(--ink); background:var(--teal-deep); overflow:hidden; }
+  h1,h2,h3,.num{font-family:'Space Grotesk',sans-serif;}
+
+  /* ---- scene ---- */
+  .scene{ position:fixed; inset:0; overflow:hidden; z-index:0; }
+  .sky{ position:absolute; inset:0; background:linear-gradient(180deg,#BFE7E0 0%, #DCEFCB 38%, #EDF3CF 60%, #F4EBC9 100%); }
+  .sun{
+    position:absolute; top:8%; left:14%; width:110px; height:110px; border-radius:50%;
+    background:radial-gradient(circle at 40% 35%, #FFF3D8, var(--sun) 55%, rgba(255,200,118,0) 72%);
+    box-shadow:0 0 80px 34px rgba(255,200,118,0.4);
+    animation:sunDrift 40s ease-in-out infinite alternate;
+  }
+  @keyframes sunDrift{ from{transform:translateY(0);} to{transform:translateY(10px);} }
+  .hills{ position:absolute; left:0; right:0; bottom:0; height:40%; background:linear-gradient(180deg, rgba(23,90,72,0.0), rgba(14,60,48,0.35)); }
+  .hill{ position:absolute; bottom:-10%; width:70%; height:60%; border-radius:50% 50% 0 0 / 100% 100% 0 0; }
+  .hill.h1{ left:-20%; background:#1E6E58; opacity:0.5; }
+  .hill.h2{ left:55%; background:#175A48; opacity:0.65; height:42%; }
+  .cloud{ position:absolute; background:rgba(255,255,255,0.6); border-radius:50%; filter:blur(2px); animation:drift linear infinite; }
+  @keyframes drift{ from{transform:translateX(0);} to{transform:translateX(110px);} }
+
+  /* ---- nav rail ---- */
+  .rail{
+    position:fixed; top:50%; left:22px; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:6px; padding:12px 8px; border-radius:22px;
+    background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(16px);
+    box-shadow:var(--glass-shadow); z-index:30;
+  }
+  .rail .brand{ width:38px; height:38px; margin-bottom:8px; border-radius:12px; background:linear-gradient(135deg,var(--algae),var(--teal-mid)); display:flex; align-items:center; justify-content:center; text-decoration:none; }
+  .rail .brand svg{ width:20px; height:20px; }
+  .rail-item{ position:relative; width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); background:transparent; border:none; cursor:pointer; transition:background .25s ease, color .25s ease; text-decoration:none; }
+  .rail-item svg{ width:18px; height:18px; }
+  .rail-item:hover{ background:rgba(255,255,255,0.5); }
+  .rail-item.active{ background:var(--teal-mid); color:#fff; }
+  .rail-item:focus-visible{ outline:2px solid var(--algae); outline-offset:2px; }
+  .rail-item::after{
+    content:attr(data-label); position:absolute; left:52px; top:50%; transform:translateY(-50%);
+    background:var(--teal-deep); color:#fff; font-size:12px; padding:5px 10px; border-radius:8px; white-space:nowrap;
+    opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:50;
+  }
+  .rail-item:hover::after{ opacity:1; }
+
+  .glass{ background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(18px); box-shadow:var(--glass-shadow); border-radius:20px; }
+
+  /* ---- layout grid ---- */
+  .dt-grid{
+    position:fixed; inset:0; z-index:10;
+    display:grid;
+    grid-template-columns: 300px 1fr 380px;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "tabs tabs tabs"
+      "current pond compare"
+      "narrative pond chart";
+    gap:22px;
+    padding:26px 30px 26px 96px;
+    pointer-events:none;
+  }
+  .dt-grid > *{ pointer-events:auto; }
+
+  #tabsRow{ grid-area:tabs; justify-self:center; display:flex; gap:8px; padding:8px; }
+  .tab-btn{
+    display:flex; align-items:center; gap:8px; font-family:'Inter'; font-weight:500; font-size:13px;
+    padding:8px 16px; border-radius:14px; border:none; background:transparent; color:var(--ink-soft); cursor:pointer;
+    transition:background .2s ease, color .2s ease;
+  }
+  .tab-btn .dot{ width:9px; height:9px; border-radius:50%; }
+  .tab-btn.active{ background:var(--teal-mid); color:#fff; }
+  .tab-btn:focus-visible{ outline:2px solid var(--algae); outline-offset:2px; }
+
+  #currentCard{ grid-area:current; align-self:start; padding:20px; }
+  #currentCard h3{ margin:0 0 2px; font-size:16px; }
+  #currentCard .status{ font-size:12.5px; color:var(--ink-soft); margin-bottom:14px; }
+  .gauge-row{ display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+  .gauge-val{ font-size:26px; font-weight:600; }
+  .gauge-label{ font-size:11.5px; color:var(--ink-soft); }
+  .metric-row{ display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-top:1px solid rgba(14,38,34,0.08); }
+  .metric-row span:first-child{ color:var(--ink-soft); }
+  .metric-row span:last-child{ font-weight:600; }
+  .metric-tag{ font-size:9.5px; font-weight:600; padding:2px 6px; border-radius:6px; color:#fff; margin-right:4px; vertical-align:middle; }
+  .mt-measured{ background:var(--teal-mid); }
+  .mt-estimated{ background:var(--amber); }
+
+  #pondStage{ grid-area:pond; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; }
+  .pond-big-wrap{ position:relative; width:340px; height:280px; }
+  .pond-tint{ position:absolute; inset:-50px; border-radius:50%; opacity:0; pointer-events:none; transition:opacity 1.6s ease, background 1.6s ease; filter:blur(20px); }
+  .pond-ring{ position:absolute; inset:-16px; border-radius:50%; border:2px solid transparent; opacity:0; pointer-events:none; transition:opacity 1s ease, border-color 1s ease; }
+  .pond-big-wrap.pulse .pond-ring{ animation:pulseRing 2.6s ease-out infinite; }
+  .pond-big-wrap.pulse-fast .pond-ring{ animation:pulseRing 1.5s ease-out infinite; }
+  @keyframes pulseRing{ 0%{transform:scale(0.94); opacity:.75;} 100%{transform:scale(1.2); opacity:0;} }
+  .pond-big{
+    position:absolute; inset:0; overflow:hidden; border-radius:58% 42% 53% 47% / 48% 58% 42% 52%;
+    box-shadow:0 24px 44px rgba(8,40,32,0.4), inset 0 -18px 30px rgba(0,0,0,0.2);
+    transition:background 1.8s ease; animation:pondBreathe 9s ease-in-out infinite;
+  }
+  @keyframes pondBreathe{ 0%,100%{border-radius:58% 42% 53% 47% / 48% 58% 42% 52%;} 50%{border-radius:52% 48% 46% 54% / 55% 45% 55% 45%;} }
+  .pond-surface{ position:absolute; inset:0; background:repeating-linear-gradient(120deg, rgba(255,255,255,0.16) 0 14px, rgba(255,255,255,0) 14px 30px); mix-blend-mode:overlay; animation:shimmer 6s linear infinite; }
+  @keyframes shimmer{ from{background-position:0 0;} to{background-position:240px 100px;} }
+  .patches{ position:absolute; inset:0; opacity:0; transition:opacity 1.6s ease;
+    background:radial-gradient(ellipse 90px 50px at 30% 65%, rgba(90,55,35,0.55), transparent 70%), radial-gradient(ellipse 70px 40px at 72% 40%, rgba(90,55,35,0.45), transparent 70%); }
+  .bubbles{ position:absolute; inset:0; overflow:hidden; }
+  .bubble{ position:absolute; bottom:-10px; border-radius:50%; background:rgba(255,255,255,0.75); animation:rise linear infinite; }
+  @keyframes rise{ 0%{transform:translateY(0) scale(1); opacity:0;} 12%{opacity:.85;} 100%{transform:translateY(-230px) scale(1.3); opacity:0;} }
+  .pond-name{ font-size:16px; font-weight:600; color:#fff; text-align:center; }
+  .pond-sub{ font-size:12.5px; color:rgba(255,255,255,0.8); text-align:center; margin-top:2px; }
+
+  #compareCard{ grid-area:compare; align-self:start; padding:20px; }
+  #compareCard h3{ margin:0 0 2px; font-size:15px; }
+  #compareCard .sub{ font-size:12px; color:var(--ink-soft); margin-bottom:12px; }
+  .cmp-head, .cmp-row{ display:grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap:6px; align-items:center; }
+  .cmp-head span{ font-size:10.5px; color:var(--ink-soft); font-weight:500; }
+  .cmp-row{ padding:8px 0; border-top:1px solid rgba(14,38,34,0.08); font-size:13px; }
+  .cmp-row .metric-name{ font-weight:500; }
+  .cmp-row .delta-up{ color:var(--algae); }
+  .cmp-row .delta-down{ color:var(--red); }
+
+  #narrativeCard{ grid-area:narrative; align-self:end; padding:20px; max-height:230px; overflow:auto; }
+  #narrativeCard h3{ margin:0 0 10px; font-size:15px; }
+  .narr-line{ display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-top:1px solid rgba(14,38,34,0.08); }
+  .narr-line:first-of-type{ border-top:none; }
+  .narr-tag{ flex:none; font-size:10px; font-weight:600; padding:3px 8px; border-radius:8px; color:#fff; white-space:nowrap; margin-top:1px; }
+  .tag-measured{ background:var(--teal-mid); }
+  .tag-predicted{ background:#3D6E8A; }
+  .tag-estimated{ background:var(--amber); }
+  .narr-text{ font-size:13px; line-height:1.5; }
+  .narr-conf{ font-size:11.5px; color:var(--ink-soft); font-style:italic; padding-top:8px; }
+
+  #chartCard{ grid-area:chart; align-self:end; padding:20px 20px 12px; }
+  #chartCard h3{ margin:0 0 2px; font-size:15px; }
+  #chartCard .sub{ font-size:12px; color:var(--ink-soft); margin-bottom:6px; }
+  .legend{ display:flex; gap:16px; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px; }
+  .legend span{ display:flex; align-items:center; gap:6px; }
+  .legend i{ width:14px; height:2px; display:inline-block; }
+
+  /* ---------- DEMO DATA BADGE ---------- */
+  .demo-data-badge{
+    position:fixed; bottom:22px; left:80px; z-index:30;
+    padding:5px 12px; border-radius:20px;
+    background:rgba(11,61,58,0.72); border:1px solid rgba(127,224,204,0.25);
+    backdrop-filter:blur(10px);
+    font-size:10.5px; font-weight:600; letter-spacing:.4px;
+    color:rgba(127,224,204,0.85);
+    pointer-events:none;
+    font-family:'Inter',sans-serif;
+  }
+
+  @media (max-width:1250px){
+    .dt-grid{ grid-template-columns: 260px 1fr 320px; }
+  }
+  @media (max-width:1024px){
+    .dt-grid{
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto auto auto;
+      grid-template-areas:
+        "tabs tabs"
+        "current compare"
+        "pond pond"
+        "narrative chart";
+      overflow-y:auto; position:relative; height:100vh;
+    }
+    #pondStage{ min-height:260px; }
+  }
+  @media (max-width:768px){
+    .dt-grid{
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "tabs"
+        "current"
+        "pond"
+        "compare"
+        "narrative"
+        "chart";
+      padding:16px 16px 16px 70px;
+    }
+    .pond-big-wrap{ width:240px; height:200px; }
+    .demo-data-badge{ left:70px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="scene">
+  <div class="sky"></div>
+  <div class="sun"></div>
+  <div class="hills"><div class="hill h1"></div><div class="hill h2"></div></div>
+  <div id="clouds"></div>
+</div>
+
+<nav class="rail" aria-label="Main navigation">
+  <a class="brand" href="command-center.html" aria-label="Verdance home">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 10 5 14a7 7 0 0 0 14 0c0-4-3-8-7-12z" fill="#F4F6F3"/></svg>
+  </a>
+  <a class="rail-item" data-label="Command Center" href="command-center.html" aria-label="Command Center">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 13l2.5 2.5L16 9"/></svg>
+  </a>
+  <a class="rail-item" data-label="Pond Digital Twin" href="pond-digital-twin.html" aria-label="Pond Digital Twin">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>
+  </a>
+  <a class="rail-item" data-label="AI Intelligence" href="ai-intelligence.html" aria-label="AI Intelligence">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/><circle cx="12" cy="12" r="4"/></svg>
+  </a>
+  <a class="rail-item" data-label="Satellite Verification" href="satellite-verification.html" aria-label="Satellite Verification">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l6 6M13 3l8 8-3 3-8-8zM7 13l4 4-3 3-4-4z"/></svg>
+  </a>
+  <a class="rail-item" data-label="Scenario Simulator" href="scenario-simulator.html" aria-label="Scenario Simulator">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M4 10l6-6 6 3 4-3"/></svg>
+  </a>
+  <a class="rail-item" data-label="Carbon MRV" href="carbon-mrv.html" aria-label="Carbon MRV">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+  </a>
+  <a class="rail-item" data-label="Reports" href="reports.html" aria-label="Reports">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h6M9 16h6"/></svg>
+  </a>
+</nav>
+
+<div class="dt-grid">
+  <div id="tabsRow" class="glass" role="tablist" aria-label="Select pond"></div>
+
+  <div id="currentCard" class="glass" role="region" aria-label="Current pond readings">
+    <h3 id="curName">Pond P1</h3>
+    <div class="status" id="curStatus">Healthy</div>
+    <div class="gauge-row">
+      <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
+        <circle cx="29" cy="29" r="24" fill="none" stroke="rgba(14,38,34,0.1)" stroke-width="7"/>
+        <circle id="gaugeArc" cx="29" cy="29" r="24" fill="none" stroke="#2FBE86" stroke-width="7" stroke-linecap="round" stroke-dasharray="150.8" stroke-dashoffset="0" transform="rotate(-90 29 29)"/>
+      </svg>
+      <div>
+        <div class="gauge-val" id="gaugeVal">–</div>
+        <div class="gauge-label">Operational Health Score</div>
+      </div>
+    </div>
+    <div class="metric-row"><span><span class="metric-tag mt-measured">Measured</span>Temperature</span><span id="curTemp">–</span></div>
+    <div class="metric-row"><span><span class="metric-tag mt-measured">Measured</span>pH</span><span id="curPh">–</span></div>
+    <div class="metric-row"><span><span class="metric-tag mt-measured">Measured</span>Dissolved oxygen</span><span id="curDo">–</span></div>
+    <div class="metric-row"><span><span class="metric-tag mt-estimated">Estimated</span>Biomass</span><span id="curBiomass">–</span></div>
+    <div class="metric-row"><span><span class="metric-tag mt-estimated">Estimated</span>CO₂ capture rate</span><span id="curCo2">–</span></div>
+  </div>
+
+  <div id="pondStage">
+    <div class="pond-big-wrap" id="pondBigWrap">
+      <div class="pond-tint" id="bigTint"></div>
+      <div class="pond-ring" id="bigRing"></div>
+      <div class="pond-big" id="pondBig">
+        <div class="pond-surface"></div>
+        <div class="bubbles" id="bigBubbles"></div>
+        <div class="patches" id="bigPatches"></div>
+      </div>
+    </div>
+    <div>
+      <div class="pond-name" id="stageName">Pond P1</div>
+      <div class="pond-sub" id="stageSub">Prototype digital twin</div>
+    </div>
+  </div>
+
+  <div id="compareCard" class="glass" role="region" aria-label="Now vs expected vs predicted">
+    <h3>Now → expected → predicted</h3>
+    <div class="sub">Measured state vs healthy-model baseline vs 24h prototype forecast</div>
+    <div class="cmp-head"><span></span><span>Now</span><span>Expected</span><span>+24h</span></div>
+    <div class="cmp-row"><span class="metric-name">Biomass g/L</span><span id="cmpBioNow">–</span><span id="cmpBioExp">–</span><span id="cmpBioPred">–</span></div>
+    <div class="cmp-row"><span class="metric-name">CO₂ kg/day</span><span id="cmpCo2Now">–</span><span id="cmpCo2Exp">–</span><span id="cmpCo2Pred">–</span></div>
+    <div class="cmp-row"><span class="metric-name">Health %</span><span id="cmpHNow">–</span><span id="cmpHExp">–</span><span id="cmpHPred">–</span></div>
+  </div>
+
+  <div id="narrativeCard" class="glass" role="region" aria-label="Prototype model narrative">
+    <h3>What the prototype model is showing</h3>
+    <div id="narrLines"></div>
+    <div class="narr-conf" id="narrConf"></div>
+  </div>
+
+  <div id="chartCard" class="glass" role="region" aria-label="Biomass history and forecast chart">
+    <h3>Biomass — history and forecast</h3>
+    <div class="sub">Solid: measured · dashed teal: prototype forecast · dashed aqua: expected healthy baseline</div>
+    <svg id="chartSvg" viewBox="0 0 640 170" width="100%" height="170" aria-label="Biomass trend chart" role="img"></svg>
+  </div>
+</div>
+
+<div class="demo-data-badge" aria-label="Prototype using simulated data">PROTOTYPE · Simulated Data</div>
+
+<script>
+/* =====================================================================
+   DEMO DATA — replace with API response when backend is ready
+   ===================================================================== */
+const PONDS = {
+  p1:{
+    name:'Pond P1', state:'healthy', health:96,
+    temp:24.3, ph:7.10, do:8.3,
+    now:{biomass:4.28, co2:52, health:96},
+    expected:{biomass:4.30, co2:53, health:97},
+    predicted:{biomass:4.34, co2:54, health:97},
+    confidence:95, carbonLossKg:0,
+    history:[4.05,4.10,4.15,4.20,4.24,4.28],
+    forecast:[4.28,4.30,4.32,4.33,4.34],
+  },
+  p2:{
+    name:'Pond P2', state:'mild', health:78,
+    temp:25.4, ph:6.92, do:7.4,
+    now:{biomass:3.62, co2:41, health:78},
+    expected:{biomass:4.10, co2:50, health:93},
+    predicted:{biomass:3.55, co2:39, health:74},
+    confidence:88, carbonLossKg:22,
+    history:[4.05,3.98,3.88,3.78,3.70,3.62],
+    forecast:[3.62,3.60,3.58,3.56,3.55],
+  },
+  p3:{
+    name:'Pond P3', state:'critical', health:38,
+    temp:27.6, ph:6.68, do:5.1,
+    now:{biomass:3.05, co2:23, health:38},
+    expected:{biomass:4.20, co2:51, health:95},
+    predicted:{biomass:2.68, co2:16, health:29},
+    confidence:87, carbonLossKg:38,
+    history:[4.02,3.85,3.60,3.35,3.18,3.05],
+    forecast:[3.05,2.94,2.85,2.75,2.68],
+  },
+};
+/* ===================================================================== */
+
+const PRESET_META = {
+  healthy:{ tint:null, pulse:null },
+  mild:{ tint:'amber', pulse:'pulse' },
+  nutrient:{ tint:'amber', pulse:'pulse' },
+  heat:{ tint:'orange', pulse:'pulse' },
+  co2fail:{ tint:'orange', pulse:'pulse' },
+  critical:{ tint:'red', pulse:'pulse-fast' },
+};
+
+let selected = 'p3';
+
+/* ---------- Helpers ---------- */
+function healthColor(h){
+  const stops = [
+    [100,[47,190,134]], [85,[63,203,152]], [70,[183,195,75]],
+    [55,[217,138,61]], [35,[178,85,47]], [0,[122,59,51]],
+  ];
+  h = Math.max(0, Math.min(100, h));
+  for(let i=0;i<stops.length-1;i++){
+    const [h1,c1] = stops[i], [h2,c2] = stops[i+1];
+    if(h<=h1 && h>=h2){
+      const t = (h - h2) / (h1 - h2 || 1);
+      const c = c1.map((v,idx)=> Math.round(v*t + c2[idx]*(1-t)));
+      return `rgb(${c[0]},${c[1]},${c[2]})`;
+    }
+  }
+  return `rgb(${stops[stops.length-1][1].join(',')})`;
+}
+function tintColor(kind){ return {amber:'rgba(217,138,61,0.55)', orange:'rgba(201,106,46,0.55)', red:'rgba(178,66,47,0.6)'}[kind] || 'transparent'; }
+function ringColor(kind){ return {amber:'#D98A3D', orange:'#C96A2E', red:'#B2422F'}[kind] || 'transparent'; }
+function statusLabel(state){
+  return {healthy:'Healthy', mild:'Mild stress', nutrient:'Nutrient stress', heat:'Heat stress', co2fail:'CO₂ supply failure', critical:'Critical anomaly'}[state] || state;
+}
+
+/* ---------- Tabs ---------- */
+const tabsRow = document.getElementById('tabsRow');
+Object.keys(PONDS).forEach(id=>{
+  const p = PONDS[id];
+  const b = document.createElement('button');
+  b.className = 'tab-btn' + (id===selected ? ' active':'');
+  b.dataset.id = id;
+  b.setAttribute('role','tab');
+  b.setAttribute('aria-selected', id===selected ? 'true':'false');
+  b.setAttribute('aria-label', p.name);
+  b.innerHTML = `<span class="dot" style="background:${healthColor(p.health)}"></span>${p.name}`;
+  b.addEventListener('click', ()=> selectPond(id));
+  tabsRow.appendChild(b);
+});
+
+/* ---------- Bubbles ---------- */
+const bigBubbles = document.getElementById('bigBubbles');
+if(bigBubbles){
+  for(let i=0;i<14;i++){
+    const b = document.createElement('div');
+    b.className='bubble';
+    const size = 3 + Math.random()*6;
+    b.style.width = size+'px'; b.style.height = size+'px';
+    b.style.left = (8 + Math.random()*84) + '%';
+    b.dataset.baseDur = (4 + Math.random()*4).toFixed(2);
+    b.style.animationDelay = (Math.random()*5).toFixed(2)+'s';
+    bigBubbles.appendChild(b);
+  }
+}
+
+/* ---------- Narrative ---------- */
+function buildNarrative(p){
+  const lines = [];
+  const deltaProd = Math.round((p.expected.biomass - p.now.biomass)/p.expected.biomass*100);
+  if(deltaProd > 2){
+    lines.push({tag:'Estimated', cls:'tag-estimated', text:`Productivity is currently ${deltaProd}% below expected behaviour.`});
+  } else {
+    lines.push({tag:'Estimated', cls:'tag-estimated', text:'Productivity is tracking in line with expected behaviour.'});
+  }
+  lines.push({tag:'Predicted', cls:'tag-predicted', text:`24-hour biomass forecast: ${p.predicted.biomass.toFixed(2)} g/L.`});
+  if(p.state==='mild'||p.state==='nutrient') lines.push({tag:'Estimated', cls:'tag-estimated', text:'Possible nutrient stress detected in prototype model.'});
+  if(p.state==='heat') lines.push({tag:'Measured', cls:'tag-measured', text:`Water temperature is running ${(p.temp-24.5).toFixed(1)}°C above target range.`});
+  if(p.state==='co2fail') lines.push({tag:'Measured', cls:'tag-measured', text:'CO₂ inlet flow has dropped sharply below normal range.'});
+  if(p.state==='critical') lines.push({tag:'Predicted', cls:'tag-predicted', text:`Projected carbon capture impact if no action: ${p.carbonLossKg} kg CO₂ over the next 24 hours.`});
+  return lines;
+}
+
+/* ---------- Chart ---------- */
+function renderChart(p){
+  const svg = document.getElementById('chartSvg');
+  if(!svg) return;
+  const w = 640, h = 170, padL = 30, padR = 10, padT = 10, padB = 24;
+  const allVals = [...p.history, ...p.forecast, p.expected.biomass];
+  const minV = Math.min(...allVals) - 0.2, maxV = Math.max(...allVals) + 0.2;
+  const n = p.history.length + p.forecast.length - 1;
+  const xAt = i => padL + (i/n) * (w - padL - padR);
+  const yAt = v => padT + (1 - (v-minV)/(maxV-minV)) * (h - padT - padB);
+
+  const histPts = p.history.map((v,i)=> [xAt(i), yAt(v)]);
+  const fcPts = p.forecast.map((v,i)=> [xAt(i + p.history.length - 1), yAt(v)]);
+  const baseline = [[xAt(0), yAt(p.expected.biomass)], [xAt(n), yAt(p.expected.biomass)]];
+
+  const toPath = pts => 'M ' + pts.map(pt=>pt.join(',')).join(' L ');
+  const color = healthColor(p.health);
+  const nowX = xAt(p.history.length - 1);
+
+  svg.innerHTML = `
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${h-padB}" stroke="rgba(14,38,34,0.15)"/>
+    <line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="rgba(14,38,34,0.15)"/>
+    <line x1="${nowX}" y1="${padT}" x2="${nowX}" y2="${h-padB}" stroke="rgba(14,38,34,0.25)" stroke-dasharray="3 4"/>
+    <path d="${toPath(baseline)}" fill="none" stroke="#7FE0CC" stroke-width="2" stroke-dasharray="5 5"/>
+    <path d="${toPath(histPts)}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="${toPath(fcPts)}" fill="none" stroke="${color}" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>
+    ${histPts.map(pt=>`<circle cx="${pt[0]}" cy="${pt[1]}" r="3" fill="${color}"/>`).join('')}
+    <circle cx="${fcPts[fcPts.length-1][0]}" cy="${fcPts[fcPts.length-1][1]}" r="3.5" fill="${color}" opacity="0.75"/>
+    <text x="${padL}" y="${h-6}" font-size="10" fill="#3E5850" font-family="Inter">-24h</text>
+    <text x="${nowX}" y="${h-6}" font-size="10" fill="#3E5850" font-family="Inter" text-anchor="middle">now</text>
+    <text x="${w-padR}" y="${h-6}" font-size="10" fill="#3E5850" font-family="Inter" text-anchor="end">+24h</text>
+  `;
+}
+
+function deltaSpan(now, pred){
+  const cls = pred >= now ? 'delta-up' : 'delta-down';
+  const arrow = pred >= now ? '▲' : '▼';
+  return `<span class="${cls}">${arrow}</span>`;
+}
+
+/* ---------- Main render ---------- */
+function renderPond(){
+  const p = PONDS[selected];
+  if(!p) return;
+  const meta = PRESET_META[p.state] || {};
+  const color = healthColor(p.health);
+
+  const pondBig = document.getElementById('pondBig');
+  if(pondBig) pondBig.style.background = `radial-gradient(circle at 35% 28%, ${color}, ${color} 40%, rgba(10,50,40,0.9) 100%)`;
+
+  const tintEl = document.getElementById('bigTint');
+  const ringEl = document.getElementById('bigRing');
+  const wrapEl = document.getElementById('pondBigWrap');
+  if(tintEl && ringEl && wrapEl){
+    if(meta.tint){
+      tintEl.style.background = `radial-gradient(circle, ${tintColor(meta.tint)}, transparent 70%)`;
+      tintEl.style.opacity = 1;
+      ringEl.style.borderColor = ringColor(meta.tint);
+      ringEl.style.opacity = 0.9;
+      wrapEl.classList.remove('pulse','pulse-fast');
+      wrapEl.classList.add(meta.pulse || 'pulse');
+    } else {
+      tintEl.style.opacity = 0;
+      ringEl.style.opacity = 0;
+      wrapEl.classList.remove('pulse','pulse-fast');
+    }
+  }
+
+  const bigPatches = document.getElementById('bigPatches');
+  if(bigPatches) bigPatches.style.opacity = p.health < 45 ? Math.min(1,(45-p.health)/25) : 0;
+
+  const activity = Math.max(0.08, p.health/100);
+  if(bigBubbles) bigBubbles.querySelectorAll('.bubble').forEach(b=>{
+    const base = parseFloat(b.dataset.baseDur);
+    b.style.animationDuration = (base/activity).toFixed(2)+'s';
+    b.style.opacity = Math.max(0.25, activity);
+  });
+
+  const set = (id,val)=>{ const el=document.getElementById(id); if(el) el.textContent=val; };
+  const setHTML = (id,val)=>{ const el=document.getElementById(id); if(el) el.innerHTML=val; };
+
+  set('stageName', p.name);
+  set('stageSub', statusLabel(p.state) + ' · prototype digital twin');
+  set('curName', p.name);
+  set('curStatus', statusLabel(p.state));
+  set('curTemp', p.temp.toFixed(1)+' °C');
+  set('curPh', p.ph.toFixed(2));
+  set('curDo', p.do.toFixed(1)+' mg/L');
+  set('curBiomass', p.now.biomass.toFixed(2)+' g/L');
+  set('curCo2', p.now.co2+' kg/day');
+
+  const gaugeArc = document.getElementById('gaugeArc');
+  if(gaugeArc){
+    const circumference = 150.8;
+    gaugeArc.style.stroke = color;
+    gaugeArc.style.strokeDashoffset = circumference * (1 - p.health/100);
+  }
+  set('gaugeVal', p.health+'%');
+
+  set('cmpBioNow', p.now.biomass.toFixed(2));
+  set('cmpBioExp', p.expected.biomass.toFixed(2));
+  setHTML('cmpBioPred', p.predicted.biomass.toFixed(2)+' '+deltaSpan(p.now.biomass, p.predicted.biomass));
+  set('cmpCo2Now', p.now.co2);
+  set('cmpCo2Exp', p.expected.co2);
+  setHTML('cmpCo2Pred', p.predicted.co2+' '+deltaSpan(p.now.co2, p.predicted.co2));
+  set('cmpHNow', p.now.health);
+  set('cmpHExp', p.expected.health);
+  setHTML('cmpHPred', p.predicted.health+' '+deltaSpan(p.now.health, p.predicted.health));
+
+  const narrLines = document.getElementById('narrLines');
+  if(narrLines) narrLines.innerHTML = buildNarrative(p).map(l=>
+    `<div class="narr-line"><span class="narr-tag ${l.cls}">${l.tag}</span><span class="narr-text">${l.text}</span></div>`
+  ).join('');
+
+  const narrConf = document.getElementById('narrConf');
+  if(narrConf) narrConf.textContent = `Prototype model confidence: ${p.confidence}%`;
+
+  renderChart(p);
+
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.id===selected);
+    b.setAttribute('aria-selected', b.dataset.id===selected ? 'true':'false');
+  });
+}
+
+function selectPond(id){ selected = id; renderPond(); }
+
+/* ---------- Auto-active nav ---------- */
+(function(){
+  const page = window.location.pathname.split('/').pop() || 'pond-digital-twin.html';
+  document.querySelectorAll('.rail-item[href]').forEach(a=>{
+    if(a.getAttribute('href') === page) a.classList.add('active');
+    else a.classList.remove('active');
+  });
+})();
+
+/* ---------- Clouds ---------- */
+const cloudsWrap = document.getElementById('clouds');
+if(cloudsWrap){
+  for(let i=0;i<3;i++){
+    const c = document.createElement('div');
+    c.className='cloud';
+    const w = 80+Math.random()*80, h = w*0.4;
+    c.style.width=w+'px'; c.style.height=h+'px';
+    c.style.top = (8+Math.random()*16)+'%';
+    c.style.left = (Math.random()*80)+'%';
+    c.style.animationDuration = (30+Math.random()*30)+'s';
+    c.style.animationDirection = i%2? 'alternate-reverse':'alternate';
+    cloudsWrap.appendChild(c);
+  }
+}
+
+renderPond();
+</script>
+</body>
+</html>

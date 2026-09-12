@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Verdance — AI Intelligence</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Verdance AI Intelligence — prototype model output for anomaly detection and biomass forecasting across algae ponds.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal-deep:#0B3D3A; --teal-mid:#0F5850; --algae:#2FBE86; --aqua:#7FE0CC; --sun:#FFC876;
+    --ink:#0E2622; --ink-soft:#3E5850;
+    --glass-bg:rgba(244,246,243,0.62); --glass-border:rgba(255,255,255,0.45); --glass-shadow:0 12px 40px rgba(11,61,58,0.25);
+    --amber:#D98A3D; --orange:#C96A2E; --red:#B2422F;
+    --tag-measured:#0F5850; --tag-predicted:#3D6E8A; --tag-estimated:#D98A3D; --tag-verified:#2F7D5A;
+  }
+  *{box-sizing:border-box;}
+  html,body{ margin:0; min-height:100%; font-family:'Inter',sans-serif; color:var(--ink); background:var(--teal-deep); }
+  h1,h2,h3,.num{font-family:'Space Grotesk',sans-serif;}
+
+  .scene{ position:fixed; inset:0; z-index:0; overflow:hidden; }
+  .sky{ position:absolute; inset:0; background:linear-gradient(180deg,#BFE7E0 0%, #DCEFCB 38%, #EDF3CF 60%, #F4EBC9 100%); }
+  .sun{ position:absolute; top:6%; right:10%; width:100px; height:100px; border-radius:50%;
+    background:radial-gradient(circle at 40% 35%, #FFF3D8, var(--sun) 55%, rgba(255,200,118,0) 72%);
+    box-shadow:0 0 70px 30px rgba(255,200,118,0.35); animation:sunDrift 40s ease-in-out infinite alternate; }
+  @keyframes sunDrift{ from{transform:translateY(0);} to{transform:translateY(10px);} }
+  .hills{ position:absolute; left:0; right:0; bottom:0; height:34%; background:linear-gradient(180deg, rgba(23,90,72,0.0), rgba(14,60,48,0.35)); }
+  .hill{ position:absolute; bottom:-10%; width:70%; height:60%; border-radius:50% 50% 0 0 / 100% 100% 0 0; }
+  .hill.h1{ left:-15%; background:#1E6E58; opacity:0.45; }
+  .hill.h2{ left:45%; background:#175A48; opacity:0.6; height:40%; }
+  .veil{ position:absolute; inset:0; background:rgba(244,246,243,0.28); }
+
+  .rail{ position:fixed; top:50%; left:22px; transform:translateY(-50%); display:flex; flex-direction:column; gap:6px; padding:12px 8px; border-radius:22px;
+    background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(16px); box-shadow:var(--glass-shadow); z-index:30; }
+  .rail .brand{ width:38px; height:38px; margin-bottom:8px; border-radius:12px; background:linear-gradient(135deg,var(--algae),var(--teal-mid)); display:flex; align-items:center; justify-content:center; text-decoration:none; }
+  .rail .brand svg{ width:20px; height:20px; }
+  .rail-item{ position:relative; width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); background:transparent; border:none; cursor:pointer; transition:background .25s ease, color .25s ease; text-decoration:none; }
+  .rail-item svg{ width:18px; height:18px; }
+  .rail-item:hover{ background:rgba(255,255,255,0.5); }
+  .rail-item.active{ background:var(--teal-mid); color:#fff; }
+  .rail-item:focus-visible{ outline:2px solid var(--algae); outline-offset:2px; }
+  .rail-item::after{ content:attr(data-label); position:absolute; left:52px; top:50%; transform:translateY(-50%); background:var(--teal-deep); color:#fff; font-size:12px; padding:5px 10px; border-radius:8px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:50; }
+  .rail-item:hover::after{ opacity:1; }
+
+  .glass{ background:var(--glass-bg); border:1px solid var(--glass-border); backdrop-filter:blur(18px); box-shadow:var(--glass-shadow); border-radius:20px; }
+
+  .page{ position:relative; z-index:10; padding:30px 34px 60px 96px; max-width:1300px; margin:0 auto; }
+  .page-head{ margin-bottom:18px; }
+  .page-head h1{ font-size:24px; margin:0 0 4px; }
+  .page-head p{ margin:0; font-size:13.5px; color:var(--ink-soft); max-width:640px; }
+  .page-head .proto-note{ display:inline-block; margin-top:6px; font-size:11px; font-weight:600; color:var(--amber); background:rgba(217,138,61,0.1); border:1px solid rgba(217,138,61,0.25); padding:3px 10px; border-radius:8px; }
+
+  .legend{ display:flex; gap:10px; padding:12px 16px; margin-bottom:22px; flex-wrap:wrap; }
+  .legend-item{ display:flex; align-items:center; gap:8px; padding:6px 12px; border-radius:12px; background:rgba(255,255,255,0.4); }
+  .legend-item .swatch{ width:10px; height:10px; border-radius:3px; flex:none; }
+  .legend-item .ltext{ font-size:12px; }
+  .legend-item .ltitle{ font-weight:600; display:block; }
+  .legend-item .ldesc{ color:var(--ink-soft); font-size:11px; }
+
+  .summary-row{ display:grid; grid-template-columns: repeat(4,1fr); gap:16px; margin-bottom:24px; }
+  .summary-card{ padding:16px 18px; }
+  .summary-card .label{ font-size:11.5px; color:var(--ink-soft); font-weight:500; }
+  .summary-card .value{ font-size:24px; font-weight:600; margin-top:2px; }
+  .summary-card .value.hero{ color:var(--teal-mid); }
+
+  .cards-row{ display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; }
+  .ai-card{ padding:20px; display:flex; flex-direction:column; gap:12px; }
+  .ai-card-head{ display:flex; align-items:center; gap:12px; }
+  .mini-pond{ width:52px; height:44px; border-radius:58% 42% 53% 47% / 48% 58% 42% 52%; flex:none; box-shadow:inset 0 -8px 14px rgba(0,0,0,0.2); position:relative; overflow:hidden; }
+  .mini-pond.pulse::after{ content:''; position:absolute; inset:-6px; border-radius:50%; border:2px solid var(--red); animation:pulseRing 2s ease-out infinite; }
+  @keyframes pulseRing{ 0%{transform:scale(0.9); opacity:.8;} 100%{transform:scale(1.3); opacity:0;} }
+  .ai-card-head h3{ margin:0; font-size:16px; }
+  .ai-card-head .sub{ font-size:12px; color:var(--ink-soft); }
+
+  .anomaly-badge{ margin-left:auto; text-align:right; }
+  .anomaly-badge .pct{ font-size:20px; font-weight:600; }
+  .anomaly-badge .plabel{ font-size:10.5px; color:var(--ink-soft); }
+
+  .ai-row{ display:flex; gap:8px; align-items:flex-start; font-size:13px; line-height:1.5; }
+  .ai-tag{ flex:none; font-size:10px; font-weight:600; padding:3px 8px; border-radius:8px; color:#fff; margin-top:1px; white-space:nowrap; }
+  .tag-measured{ background:var(--tag-measured); }
+  .tag-predicted{ background:var(--tag-predicted); }
+  .tag-estimated{ background:var(--tag-estimated); }
+  .tag-verified{ background:var(--tag-verified); }
+
+  .forecast-pair{ display:flex; gap:14px; }
+  .forecast-box{ flex:1; background:rgba(255,255,255,0.4); border-radius:12px; padding:10px 12px; }
+  .forecast-box .flabel{ font-size:10.5px; color:var(--ink-soft); }
+  .forecast-box .fval{ font-size:16px; font-weight:600; margin-top:2px; }
+
+  .conf-wrap{ margin-top:2px; }
+  .conf-label{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px; }
+  .conf-bar{ height:6px; border-radius:4px; background:rgba(14,38,34,0.1); overflow:hidden; }
+  .conf-fill{ height:100%; border-radius:4px; transition:width 1s ease; }
+
+  /* ---------- DEMO DATA BADGE ---------- */
+  .demo-data-badge{
+    position:fixed; bottom:22px; left:80px; z-index:30;
+    padding:5px 12px; border-radius:20px;
+    background:rgba(11,61,58,0.72); border:1px solid rgba(127,224,204,0.25);
+    backdrop-filter:blur(10px);
+    font-size:10.5px; font-weight:600; letter-spacing:.4px;
+    color:rgba(127,224,204,0.85);
+    pointer-events:none;
+    font-family:'Inter',sans-serif;
+  }
+
+  @media (max-width:1150px){
+    .cards-row{ grid-template-columns:1fr 1fr; }
+    .summary-row{ grid-template-columns:repeat(2,1fr); }
+  }
+  @media (max-width:768px){
+    .cards-row{ grid-template-columns:1fr; }
+    .page{ padding:20px 16px 60px 70px; }
+    .demo-data-badge{ left:70px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="scene">
+  <div class="sky"></div>
+  <div class="sun"></div>
+  <div class="hills"><div class="hill h1"></div><div class="hill h2"></div></div>
+  <div class="veil"></div>
+</div>
+
+<nav class="rail" aria-label="Main navigation">
+  <a class="brand" href="command-center.html" aria-label="Verdance home">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 2C8 6 5 10 5 14a7 7 0 0 0 14 0c0-4-3-8-7-12z" fill="#F4F6F3"/></svg>
+  </a>
+  <a class="rail-item" data-label="Command Center" href="command-center.html" aria-label="Command Center">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 13l2.5 2.5L16 9"/></svg>
+  </a>
+  <a class="rail-item" data-label="Pond Digital Twin" href="pond-digital-twin.html" aria-label="Pond Digital Twin">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>
+  </a>
+  <a class="rail-item" data-label="AI Intelligence" href="ai-intelligence.html" aria-label="AI Intelligence">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/><circle cx="12" cy="12" r="4"/></svg>
+  </a>
+  <a class="rail-item" data-label="Satellite Verification" href="satellite-verification.html" aria-label="Satellite Verification">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l6 6M13 3l8 8-3 3-8-8zM7 13l4 4-3 3-4-4z"/></svg>
+  </a>
+  <a class="rail-item" data-label="Scenario Simulator" href="scenario-simulator.html" aria-label="Scenario Simulator">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M4 10l6-6 6 3 4-3"/></svg>
+  </a>
+  <a class="rail-item" data-label="Carbon MRV" href="carbon-mrv.html" aria-label="Carbon MRV">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+  </a>
+  <a class="rail-item" data-label="Reports" href="reports.html" aria-label="Reports">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h6M9 16h6"/></svg>
+  </a>
+</nav>
+
+<div class="page">
+  <div class="page-head">
+    <h1>AI Intelligence</h1>
+    <p>Every number below is labelled by where it came from — sensors, imagery, or a model — so nothing is a black box.</p>
+    <span class="proto-note">Prototype model output — values are simulated, not from a live ML pipeline</span>
+  </div>
+
+  <div class="legend glass" role="region" aria-label="Data source legend">
+    <div class="legend-item"><span class="swatch" style="background:var(--tag-measured)"></span><span class="ltext"><span class="ltitle">Measured</span><span class="ldesc">Direct sensor reading</span></span></div>
+    <div class="legend-item"><span class="swatch" style="background:var(--tag-estimated)"></span><span class="ltext"><span class="ltitle">Estimated</span><span class="ldesc">Derived from current data</span></span></div>
+    <div class="legend-item"><span class="swatch" style="background:var(--tag-predicted)"></span><span class="ltext"><span class="ltitle">Predicted</span><span class="ldesc">Prototype model forecast, not yet observed</span></span></div>
+    <div class="legend-item"><span class="swatch" style="background:var(--tag-verified)"></span><span class="ltext"><span class="ltitle">Verified</span><span class="ldesc">Cross-checked with satellite/drone imagery</span></span></div>
+  </div>
+
+  <div class="summary-row" role="region" aria-label="Summary statistics">
+    <div class="summary-card glass"><div class="label">Anomalies flagged</div><div class="value hero" id="sumAnomalies">–</div></div>
+    <div class="summary-card glass"><div class="label">Avg. prototype model confidence</div><div class="value" id="sumConfidence">–</div></div>
+    <div class="summary-card glass"><div class="label">Prototype models active</div><div class="value" id="sumModels">–</div></div>
+    <div class="summary-card glass"><div class="label">Last updated (simulated)</div><div class="value" id="sumUpdated" style="font-size:16px;">–</div></div>
+  </div>
+
+  <div class="cards-row" id="cardsRow" role="region" aria-label="Per-pond model output"></div>
+</div>
+
+<div class="demo-data-badge" aria-label="Prototype using simulated data">PROTOTYPE · Simulated Data</div>
+
+<script>
+/* =====================================================================
+   DEMO DATA — replace with API response when backend is ready
+   ===================================================================== */
+const AI_DATA = {
+  p1:{
+    name:'Pond P1', health:96, anomalyProb:4, confidence:96,
+    cause:null,
+    forecast6h:4.31, forecast24h:4.34,
+    carbonImpactKg:0, carbonWindowDays:7,
+  },
+  p2:{
+    name:'Pond P2', health:78, anomalyProb:58, confidence:88,
+    cause:'Possible nutrient stress, consistent with a slow decline in dissolved oxygen over the last 6 hours.',
+    forecast6h:3.58, forecast24h:3.55,
+    carbonImpactKg:-22, carbonWindowDays:7,
+  },
+  p3:{
+    name:'Pond P3', health:38, anomalyProb:87, confidence:87,
+    cause:'Nutrient stress compounded by elevated temperature. Similar pattern preceded two prior productivity drops.',
+    forecast6h:2.90, forecast24h:2.68,
+    carbonImpactKg:-160, carbonWindowDays:7,
+  },
+};
+/* ===================================================================== */
+
+/* ---------- Helpers ---------- */
+function healthColor(h){
+  const stops = [
+    [100,[47,190,134]], [85,[63,203,152]], [70,[183,195,75]],
+    [55,[217,138,61]], [35,[178,85,47]], [0,[122,59,51]],
+  ];
+  h = Math.max(0, Math.min(100, h));
+  for(let i=0;i<stops.length-1;i++){
+    const [h1,c1] = stops[i], [h2,c2] = stops[i+1];
+    if(h<=h1 && h>=h2){
+      const t = (h - h2) / (h1 - h2 || 1);
+      const c = c1.map((v,idx)=> Math.round(v*t + c2[idx]*(1-t)));
+      return `rgb(${c[0]},${c[1]},${c[2]})`;
+    }
+  }
+  return `rgb(${stops[stops.length-1][1].join(',')})`;
+}
+function anomalyColor(pct){ return pct < 20 ? '#2FBE86' : pct < 60 ? '#D98A3D' : '#B2422F'; }
+
+/* ---------- Render functions ---------- */
+function renderSummary(){
+  const ponds = Object.values(AI_DATA);
+  const anomalies = ponds.filter(p=>p.anomalyProb >= 20).length;
+  const avgConf = Math.round(ponds.reduce((s,p)=>s+p.confidence,0)/ponds.length);
+  const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('sumAnomalies', anomalies);
+  set('sumConfidence', avgConf+'%');
+  set('sumModels', '3');
+  set('sumUpdated', 'Just now');
+}
+
+function renderCards(){
+  const row = document.getElementById('cardsRow');
+  if(!row) return;
+  row.innerHTML = Object.values(AI_DATA).map(p=>{
+    const color = healthColor(p.health);
+    const aColor = anomalyColor(p.anomalyProb);
+    const causeRow = p.cause
+      ? `<div class="ai-row"><span class="ai-tag tag-estimated">Estimated</span><span>${p.cause}</span></div>`
+      : `<div class="ai-row"><span class="ai-tag tag-verified">Verified</span><span>No anomaly detected in the prototype model.</span></div>`;
+    const carbonText = p.carbonImpactKg < 0
+      ? `Projected CO₂ capture impact over the next ${p.carbonWindowDays} days: ${p.carbonImpactKg} kg CO₂ if current conditions persist.`
+      : `No negative CO₂ capture impact projected over the next ${p.carbonWindowDays} days.`;
+    return `
+      <div class="ai-card glass" role="article" aria-label="${p.name} model output">
+        <div class="ai-card-head">
+          <div class="mini-pond ${p.anomalyProb>=60?'pulse':''}" style="background:radial-gradient(circle at 35% 30%, ${color}, rgba(10,50,40,0.9))" aria-hidden="true"></div>
+          <div>
+            <h3>${p.name}</h3>
+            <div class="sub">Operational Health Score: ${p.health}%</div>
+          </div>
+          <div class="anomaly-badge">
+            <div class="pct" style="color:${aColor}">${p.anomalyProb}%</div>
+            <div class="plabel">anomaly probability</div>
+          </div>
+        </div>
+
+        ${causeRow}
+
+        <div class="forecast-pair">
+          <div class="forecast-box">
+            <div class="flabel">6h biomass forecast</div>
+            <div class="fval">${p.forecast6h.toFixed(2)} g/L</div>
+          </div>
+          <div class="forecast-box">
+            <div class="flabel">24h biomass forecast</div>
+            <div class="fval">${p.forecast24h.toFixed(2)} g/L</div>
+          </div>
+        </div>
+
+        <div class="ai-row"><span class="ai-tag tag-predicted">Predicted</span><span>${carbonText}</span></div>
+
+        <div class="conf-wrap">
+          <div class="conf-label"><span>Prototype model confidence</span><span>${p.confidence}%</span></div>
+          <div class="conf-bar"><div class="conf-fill" style="width:${p.confidence}%; background:${color}"></div></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ---------- Auto-active nav ---------- */
+(function(){
+  const page = window.location.pathname.split('/').pop() || 'ai-intelligence.html';
+  document.querySelectorAll('.rail-item[href]').forEach(a=>{
+    if(a.getAttribute('href') === page) a.classList.add('active');
+    else a.classList.remove('active');
+  });
+})();
+
+renderSummary();
+renderCards();
+</script>
+</body>
+</html>

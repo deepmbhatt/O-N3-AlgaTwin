@@ -179,32 +179,32 @@ These endpoints allow the frontend and AI service to work together while preserv
 
 ## Screenshot Gallery
 
-Below are placeholder sections for final visuals. Replace each path with the actual image asset once the screenshots are added to the repository.
+The screenshots below are stored in the project assets folder and referenced directly from there.
 
 ### Dashboard Overview
-![Dashboard Overview](screenshots/dashboard.png)
+![Dashboard Overview](backend/assets/Screenshot%202026-09-12%20at%2014.57.01.png)
 
-Caption: Live pond dashboard showing telemetry, health scores, and carbon-related monitoring indicators.
+Live pond command center showing telemetry, pond health, and carbon monitoring in a single operational view.
 
 ### Historical Replay and Event Stream
-![Historical Replay](screenshots/history.png)
+![Historical Replay](backend/assets/Screenshot%202026-09-12%20at%2014.57.16.png)
 
-Caption: Historical pond record timeline used to track live operational performance and audit retention.
+Historical telemetry timeline used to review pond conditions and operational performance over time.
 
 ### Scenario Simulator
-![Scenario Simulator](screenshots/simulator.png)
+![Scenario Simulator](backend/assets/Screenshot%202026-09-12%20at%2014.57.28.png)
 
-Caption: Sandbox mode for adjusting environmental parameters and forecasting future pond response without altering baseline data.
+Sandbox simulation interface for testing environmental adjustments and forecasting pond response without altering live baseline data.
 
-### Anomaly Alert View
-![Anomaly Detection](screenshots/anomaly.png)
+### Intervention Before Impact
+![Intervention Design](backend/assets/Screenshot%202026-09-12%20at%2014.57.40.png)
 
-Caption: System alerts identifying stress conditions and highlighting operational intervention needs.
+Custom intervention controls used to simulate a response before a pond enters a risky condition.
 
-### Digital Twin / Pond View
-![Digital Twin](screenshots/twin.png)
+### Remote Verification and AI Evidence
+![Remote Verification](backend/assets/Screenshot%202026-09-12%20at%2014.57.49.png)
 
-Caption: Visualization of the pond state and operational health model presented as an interactive digital twin.
+Remote monitoring view highlighting AI-based evidence, remote sensing analysis, and operational verification signals.
 
 ---
 

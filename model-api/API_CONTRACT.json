@@ -18,7 +18,10 @@
   "recommended_workflow": [
     "Cron calls POST /predict to consume the next stream burst.",
     "Backend or frontend calls GET /dashboard without advancing the stream.",
-    "User calls POST /simulate after the requested pond has been streamed at least once."
+    "User calls POST /simulate after the requested pond has been streamed at least once.",
+    "Frontend calls GET /ponds/{pond_id}/ai-insights for model-grounded findings and non-mutating ranked actions.",
+    "Frontend calls GET /ponds/{pond_id}/mrv for a traceable carbon estimate with explicit accounting inputs.",
+    "Aoi calls POST /assistant/chat; Gemini may explain supplied evidence but never creates model outputs or actions."
   ],
   "endpoints": {
     "predict": {
@@ -350,6 +353,76 @@
       "method": "GET",
       "path": "/redoc",
       "purpose": "Alternative ReDoc API documentation."
+    },
+    "ai_insights": {
+      "method": "GET",
+      "path": "/ponds/{pond_id}/ai-insights",
+      "purpose": "Build a compact model-grounded pond state, findings, decision mode and ranked non-mutating scenario recommendation.",
+      "state_effect": "Read-only. Candidate simulations do not advance the cursor or alter live pond state.",
+      "request": {
+        "path_fields": {
+          "pond_id": "string"
+        },
+        "query_fields": {
+          "optimize": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "response_200": {
+        "fields": {
+          "pond_id": "string",
+          "state": "object",
+          "insight": "object",
+          "action": "object"
+        }
+      }
+    },
+    "carbon_mrv": {
+      "method": "GET",
+      "path": "/ponds/{pond_id}/mrv",
+      "purpose": "Return a model-derived carbon estimate, accounting waterfall, confidence factors and provenance.",
+      "state_effect": "Read-only.",
+      "request": {
+        "path_fields": {
+          "pond_id": "string"
+        },
+        "query_fields": {
+          "pond_volume_m3": "number greater than zero",
+          "window_hours": "number greater than zero",
+          "operational_emissions_kg": "number at least zero",
+          "permanence_factor": "number from zero to one"
+        }
+      },
+      "claim_boundary": "Estimated, model-derived and not registry verified. No carbon credits are issued."
+    },
+    "assistant_chat": {
+      "method": "POST",
+      "path": "/assistant/chat",
+      "purpose": "Explain the current model evidence and ranked scenario through Gemini or a deterministic fallback.",
+      "state_effect": "Read-only. The assistant cannot execute interventions or mutate live pond state.",
+      "request": {
+        "required_fields": [
+          "pond_id",
+          "message"
+        ],
+        "example": {
+          "pond_id": "pond-01",
+          "message": "What is happening and what should I do?"
+        }
+      },
+      "response_200": {
+        "fields": {
+          "answer": "string",
+          "provider": "gemini or deterministic",
+          "intent": "explain or optimize",
+          "based_on": "array of provenance labels",
+          "recommended_action": "object or null",
+          "action_state": "string",
+          "evidence": "object"
+        }
+      }
     }
   },
   "shared_schemas": {

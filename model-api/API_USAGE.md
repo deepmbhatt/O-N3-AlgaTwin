@@ -205,7 +205,7 @@ async function runAlgaTwinBurst() {
 }
 ```
 
-The AlgaTwin service writes history to MongoDB itself when `ALGATWIN_MONGODB_URI` is configured. The calling backend should not insert duplicate prediction documents.
+The default hackathon runtime keeps a bounded history in memory and requires no MongoDB. Optional persistence is used only when ALGATWIN_MONGODB_URI is explicitly configured.
 
 ## Frontend example
 
@@ -231,3 +231,70 @@ renderImage(
 - `503`: simulation completed but persistence failed.
 
 Maximum decoded submitted image size is 10 MB. JPG, PNG and WebP are supported.
+
+## GET /ponds/{pond_id}/ai-insights
+
+Returns the decision package built from the latest real model output. It is read-only: any candidate actions are evaluated through /simulate and never alter the cursor or live state.
+
+~~~http
+GET /ponds/pond-01/ai-insights
+GET /ponds/pond-01/ai-insights?optimize=true
+~~~
+
+The response contains:
+
+- state: compact digital-twin evidence with measured, estimated, predicted and verified provenance;
+- insight: current decision mode (RECOVER, VERIFY, STABILIZE, MAINTAIN or OPTIMIZE) and findings;
+- action: tested candidate count, ranked scenario result, confidence and live_state_changed: false.
+
+A recommendation is returned only when a tested candidate clears the configured improvement threshold.
+
+## GET /ponds/{pond_id}/mrv
+
+Builds a transparent carbon MRV estimate from the latest model-derived uptake rate and caller-supplied accounting boundary.
+
+~~~http
+GET /ponds/pond-01/mrv?pond_volume_m3=1000&window_hours=24&operational_emissions_kg=2.5&permanence_factor=0.9
+~~~
+
+This response includes gross modeled capture, operational emissions, permanence adjustment, net estimated claim, confidence factors and model/stream provenance. It is explicitly estimated_not_registry_verified; it does not issue or certify carbon credits.
+
+## POST /assistant/chat
+
+Aoi explains the current pond evidence and the scenario-ranked action. It cannot create measurements, override model outputs or execute interventions.
+
+~~~json
+{
+  "pond_id": "pond-01",
+  "message": "Why is this pond stressed and what should I do?"
+}
+~~~
+
+Response shape:
+
+~~~json
+{
+  "answer": "Grounded explanation...",
+  "provider": "gemini",
+  "intent": "explain",
+  "based_on": ["measured_iot", "model_estimated", "model_predicted"],
+  "recommended_action": null,
+  "action_state": "STABILIZE",
+  "evidence": {}
+}
+~~~
+
+Without a Gemini key, provider is deterministic and the endpoint remains fully usable.
+
+## Gemini configuration
+
+Keep the key in the model API process, never in the browser bundle:
+
+~~~bash
+cp .env.example .env
+# Edit .env
+GEMINI_API_KEY=your-key
+GEMINI_MODEL=gemini-3.8-flash
+~~~
+
+From the repository root, scripts/dev.sh automatically loads model-api/.env. Gemini is an explanation layer only; the digital twin and non-mutating simulator remain the source of state and action ranking.

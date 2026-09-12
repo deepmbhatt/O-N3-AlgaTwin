@@ -28,6 +28,27 @@ async function request(path, options = {}) {
 export const getApiHealth = () => request('/health');
 export const getModels = () => request('/models');
 
+export function getAiInsights(pondId, optimize = false) {
+  return request(`/ponds/${encodeURIComponent(pondId)}/ai-insights?optimize=${optimize}`);
+}
+
+export function getCarbonMrv(pondId, options = {}) {
+  const query = new URLSearchParams({
+    pond_volume_m3: String(options.pondVolumeM3 ?? 1000),
+    window_hours: String(options.windowHours ?? 24),
+    operational_emissions_kg: String(options.operationalEmissionsKg ?? 0),
+    permanence_factor: String(options.permanenceFactor ?? 1),
+  });
+  return request(`/ponds/${encodeURIComponent(pondId)}/mrv?${query}`);
+}
+
+export function chatWithAoi(pondId, message) {
+  return request('/assistant/chat', {
+    method: 'POST',
+    body: JSON.stringify({ pond_id: pondId, message }),
+  });
+}
+
 export async function getDashboard(pondId, limit = 48) {
   const query = new URLSearchParams({ limit: String(limit) });
   if (pondId) query.set('pond_id', pondId);

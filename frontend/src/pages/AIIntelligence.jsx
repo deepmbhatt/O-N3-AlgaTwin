@@ -1,165 +1,87 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePondData } from '../context/pondDataStore';
+import { getAiInsights, getApiHealth } from '../services/dataSource';
 
-const AI_DATA = {
-  p1: {
-    name: 'Pond P1', health: 96, anomalyProb: 4, confidence: 96,
-    cause: null,
-    forecast6h: 4.31, forecast24h: 4.34,
-    carbonImpactKg: 0, carbonWindowDays: 7,
-  },
-  p2: {
-    name: 'Pond P2', health: 78, anomalyProb: 58, confidence: 88,
-    cause: 'Possible nutrient stress, consistent with a slow decline in dissolved oxygen over the last 6 hours.',
-    forecast6h: 3.58, forecast24h: 3.55,
-    carbonImpactKg: -22, carbonWindowDays: 7,
-  },
-  p3: {
-    name: 'Pond P3', health: 38, anomalyProb: 87, confidence: 87,
-    cause: 'Nutrient stress compounded by elevated temperature. Similar pattern preceded two prior productivity drops.',
-    forecast6h: 2.90, forecast24h: 2.68,
-    carbonImpactKg: -160, carbonWindowDays: 7,
-  },
+const modeCopy = {
+  RECOVER: 'Immediate intervention search',
+  STABILIZE: 'Small corrective action',
+  MAINTAIN: 'No change recommended',
+  OPTIMIZE: 'Conservative improvement search',
+  VERIFY: 'Gather stronger evidence',
 };
 
-function healthColor(h) {
-  const stops = [
-    [100, [47, 190, 134]], [85, [63, 203, 152]], [70, [183, 195, 75]],
-    [55, [217, 138, 61]], [35, [178, 85, 47]], [0, [122, 59, 51]],
-  ];
-  h = Math.max(0, Math.min(100, Number(h || 0)));
-  for (let i = 0; i < stops.length - 1; i++) {
-    const [h1, c1] = stops[i], [h2, c2] = stops[i + 1];
-    if (h <= h1 && h >= h2) {
-      const t = (h - h2) / (h1 - h2 || 1);
-      const c = c1.map((v, idx) => Math.round(v * t + c2[idx] * (1 - t)));
-      return `rgb(${c[0]},${c[1]},${c[2]})`;
-    }
-  }
-  return `rgb(${stops[stops.length - 1][1].join(',')})`;
-}
-
-function anomalyColor(pct) {
-  const p = Number(pct || 0);
-  return p < 20 ? '#2FBE86' : p < 60 ? '#D98A3D' : '#B2422F';
+function ActionCard({ entry, onOptimize, busy }) {
+  const { current_state: state, insight, action } = entry;
+  const recommended = action.recommended_action;
+  return <article className={`decision-card glass decision-${action.action_state.toLowerCase()}`}>
+    <header><div><span>{state.pond_id}</span><h2>{insight.summary}</h2></div><b>{action.action_state}</b></header>
+    <div className="decision-kpis"><span><small>Health</small><b>{state.health.score.toFixed(1)}</b></span><span><small>6h biomass</small><b>{state.biomass.change_6h_pct >= 0 ? '+' : ''}{state.biomass.change_6h_pct.toFixed(1)}%</b></span><span><small>Anomaly</small><b>{Math.round(state.anomaly.probability * 100)}%</b></span><span><small>Image confidence</small><b>{state.verification.image_confidence == null ? '-' : `${Math.round(state.verification.image_confidence * 100)}%`}</b></span></div>
+    <div className="decision-findings"><span className="eyebrow">What the models see</span>{insight.main_findings.slice(0, 4).map(item => <p key={item}><i/>{item}</p>)}</div>
+    <div className="decision-action"><span className="eyebrow">{modeCopy[action.action_state]}</span>{recommended ? <><h3>{recommended.label}</h3><div className="action-changes">{Object.entries(recommended.changes).map(([key, value]) => <span key={key}>{key.replaceAll('_', ' ')} <b>{value}</b></span>)}</div><div className="action-impact"><span>Biomass <b>{recommended.expected_biomass_change_pct >= 0 ? '+' : ''}{recommended.expected_biomass_change_pct.toFixed(1)}%</b></span><span>Health <b>{recommended.expected_health_score.toFixed(1)}</b></span><span>Class <b>{recommended.classification}</b></span></div></> : <p>{action.reason}</p>}</div>
+    <footer><span>{action.tested_count} supported scenarios tested</span><button onClick={() => onOptimize(state.pond_id)} disabled={busy}>{busy ? 'Testing...' : 'Test optimization'}</button></footer>
+  </article>;
 }
 
 export default function AIIntelligence() {
-  const { ponds: livePonds, usingFallback, connection } = usePondData();
+  const { ponds, connection, usingFallback, processNextBurst, busy: predictionBusy } = usePondData();
+  const [packages, setPackages] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [optimizing, setOptimizing] = useState('');
+  const [error, setError] = useState('');
+  const [modelFamilies, setModelFamilies] = useState(0);
 
-  const ponds = useMemo(() => {
-    if (livePonds && livePonds.length > 0) {
-      return livePonds.map(item => {
-        const d = item.snapshot?.dashboard || {};
-        const h = Math.round(d.health_score ?? 85);
-        const aProb = Math.round((d.anomaly_probability ?? 0.1) * 100);
-        const conf = Math.round((1 - (d.anomaly_probability ?? 0.1)) * 100);
-        const f6 = Number(d.biomass_6h_g_l ?? d.current_biomass_g_l ?? 3.5);
-        const f24 = Number(d.biomass_24h_g_l ?? d.current_biomass_g_l ?? 3.5);
-        const cRate = Number(d.gross_co2_uptake_rate_g_l_h ?? 0);
-        const cImpact = h < 75 ? -Math.round(cRate * 24 * 7 * 1000) : 0;
-        return {
-          id: item.pond_id,
-          name: item.pond_id.replace('-', ' ').replace(/\b\w/g, char => char.toUpperCase()),
-          health: h,
-          anomalyProb: aProb,
-          confidence: conf,
-          cause: d.anomaly_severity && d.anomaly_severity !== 'normal'
-            ? (item.snapshot?.insights?.[0]?.message || 'Ecosystem anomaly identified by machine learning model.')
-            : null,
-          forecast6h: f6,
-          forecast24h: f24,
-          carbonImpactKg: cImpact,
-          carbonWindowDays: 7,
-        };
-      });
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const [health, results] = await Promise.all([
+          getApiHealth(),
+          Promise.allSettled((ponds || []).map(item => getAiInsights(item.pond_id))),
+        ]);
+        if (cancelled) return;
+        setModelFamilies(health.model_families || 0);
+        const next = {};
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled') next[ponds[index].pond_id] = result.value.data;
+        });
+        setPackages(next);
+        setError('');
+      } catch (requestError) {
+        if (!cancelled) setError(requestError.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-    return Object.values(AI_DATA);
-  }, [livePonds]);
+    void load();
+    return () => { cancelled = true; };
+  }, [ponds]);
 
-  const anomalies = ponds.filter(p => p.anomalyProb >= 20).length;
-  const avgConf = Math.round(ponds.reduce((s, p) => s + p.confidence, 0) / (ponds.length || 1));
+  async function optimize(pondId) {
+    setOptimizing(pondId);
+    try {
+      const result = await getAiInsights(pondId, true);
+      setPackages(current => ({ ...current, [pondId]: result.data }));
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setOptimizing('');
+    }
+  }
 
-  return (
-    <div className="page ai-page">
-      <header className="page-heading">
-        <div>
-          <span className="eyebrow">AI Intelligence</span>
-          <h1>Ecosystem Intelligence &amp; Model Output</h1>
-          <p>Every number below is labelled by where it came from — sensors, imagery, or a model — so nothing is a black box.</p>
-        </div>
-      </header>
+  const entries = useMemo(() => Object.values(packages), [packages]);
+  const actionCount = entries.filter(item => item.insight.needs_action).length;
+  const tested = entries.reduce((sum, item) => sum + item.action.tested_count, 0);
 
-      {usingFallback && (
-        <div className={`data-notice notice-${connection}`}>
-          <span>{connection === 'empty' ? 'API READY' : connection === 'fallback' ? 'DEMO FALLBACK' : 'CONNECTION'}</span>
-          <p>Displaying model forecast baseline data until live telemetry is streamed.</p>
-        </div>
-      )}
+  return <div className="page ai-page decision-page">
+    <header className="page-heading"><div><span className="eyebrow">AI insight + action engine</span><h1>Decisions backed by the twin.</h1><p>Aoi explains these outputs, but only the trained models and non-mutating scenario search decide what can be recommended.</p></div><button className="burst-button" onClick={() => void processNextBurst()} disabled={predictionBusy}>{predictionBusy ? 'Running models...' : 'Run fresh prediction'}</button></header>
+    {(usingFallback || error) && <div className={`data-notice notice-${connection}`}><span>{error ? 'ENGINE NOTICE' : 'AWAITING LIVE STATE'}</span><p>{error || 'Run a prediction to replace the fallback interface with model-grounded decisions.'}</p></div>}
 
-      <div className="legend glass" role="region" aria-label="Data source legend">
-        <div className="legend-item"><span className="swatch" style={{ background: 'var(--tag-measured)' }}></span><span className="ltext"><span className="ltitle">Measured</span><span className="ldesc">Direct sensor reading</span></span></div>
-        <div className="legend-item"><span className="swatch" style={{ background: 'var(--tag-estimated)' }}></span><span className="ltext"><span className="ltitle">Estimated</span><span className="ldesc">Derived from current data</span></span></div>
-        <div className="legend-item"><span className="swatch" style={{ background: 'var(--tag-predicted)' }}></span><span className="ltext"><span className="ltitle">Predicted</span><span className="ldesc">Prototype model forecast, not yet observed</span></span></div>
-        <div className="legend-item"><span className="swatch" style={{ background: 'var(--tag-verified)' }}></span><span className="ltext"><span className="ltitle">Cross-checked</span><span className="ldesc">Cross-checked with satellite/drone imagery</span></span></div>
-      </div>
-
-      <div className="summary-row" role="region" aria-label="Summary statistics">
-        <div className="summary-card glass"><div className="label">Anomalies flagged</div><div className="value hero">{anomalies}</div></div>
-        <div className="summary-card glass"><div className="label">Avg. prototype model confidence</div><div className="value">{avgConf}%</div></div>
-        <div className="summary-card glass"><div className="label">Prototype models active</div><div className="value">{ponds.length}</div></div>
-        <div className="summary-card glass"><div className="label">Last updated</div><div className="value" style={{ fontSize: '16px' }}>Live</div></div>
-      </div>
-
-      <div className="cards-row" role="region" aria-label="Per-pond model output">
-        {ponds.map(p => {
-          const color = healthColor(p.health);
-          const aColor = anomalyColor(p.anomalyProb);
-
-          return (
-            <div key={p.name} className="ai-card glass" role="article" aria-label={`${p.name} model output`}>
-              <div className="ai-card-head">
-                <div className={`mini-pond ${p.anomalyProb >= 60 ? 'pulse' : ''}`} style={{ background: `radial-gradient(circle at 35% 30%, ${color}, rgba(10,50,40,0.9))` }} aria-hidden="true"></div>
-                <div>
-                  <h3>{p.name}</h3>
-                  <div className="sub">Operational Health Score: {p.health}%</div>
-                </div>
-                <div className="anomaly-badge">
-                  <div className="pct" style={{ color: aColor }}>{p.anomalyProb}%</div>
-                  <div className="plabel">anomaly probability</div>
-                </div>
-              </div>
-
-              {p.cause ? (
-                <div className="ai-row"><span className="ai-tag tag-estimated">Estimated</span><span>{p.cause}</span></div>
-              ) : (
-                <div className="ai-row"><span className="ai-tag tag-verified">Cross-checked</span><span>No anomaly detected in the current model reading.</span></div>
-              )}
-
-              <div className="forecast-pair">
-                <div className="forecast-box">
-                  <div className="flabel">6h biomass forecast</div>
-                  <div className="fval">{Number(p.forecast6h).toFixed(2)} g/L</div>
-                </div>
-                <div className="forecast-box">
-                  <div className="flabel">24h biomass forecast</div>
-                  <div className="fval">{Number(p.forecast24h).toFixed(2)} g/L</div>
-                </div>
-              </div>
-
-              <div className="ai-row">
-                <span className="ai-tag tag-predicted">Predicted</span>
-                <span>{p.carbonImpactKg < 0 ? `Projected CO₂ capture impact over the next ${p.carbonWindowDays} days: ${p.carbonImpactKg} kg CO₂ if current conditions persist.` : `No negative CO₂ capture impact projected over the next ${p.carbonWindowDays} days.`}</span>
-              </div>
-
-              <div className="conf-wrap">
-                <div className="conf-label"><span>Prototype model confidence</span><span>{p.confidence}%</span></div>
-                <div className="conf-bar"><div className="conf-fill" style={{ width: `${p.confidence}%`, background: color }}></div></div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+    <section className="decision-architecture glass"><span>Trained model outputs</span><i>&rarr;</i><span>Evidence insights</span><i>&rarr;</i><span>Scenario search</span><i>&rarr;</i><span>Ranked action</span><i>&rarr;</i><span>Aoi explanation</span></section>
+    <div className="summary-row"><div className="summary-card glass"><div className="label">Model families loaded</div><div className="value">{modelFamilies}</div></div><div className="summary-card glass"><div className="label">Ponds evaluated</div><div className="value">{entries.length}</div></div><div className="summary-card glass"><div className="label">Need action</div><div className="value hero">{actionCount}</div></div><div className="summary-card glass"><div className="label">Scenarios tested</div><div className="value">{tested}</div></div></div>
+    {loading && <div className="decision-empty glass">Reading the current digital twins...</div>}
+    {!loading && !entries.length && <div className="decision-empty glass"><h2>No live twin exists yet.</h2><p>Run the first prediction burst. The engine will then evaluate all three ponds without MongoDB.</p></div>}
+    <div className="decision-grid">{entries.map(entry => <ActionCard key={entry.current_state.pond_id} entry={entry} onOptimize={optimize} busy={optimizing === entry.current_state.pond_id}/>)}</div>
+    <div className="decision-safety glass"><b>Decision boundary</b><p>Recommendations are emitted only when a supported scenario improves the current twin above the configured threshold. Every candidate is tested by the packaged model artifacts. Results remain associational simulations and do not change live state.</p></div>
+  </div>;
 }

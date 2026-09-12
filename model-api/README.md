@@ -88,3 +88,20 @@ python -m pytest -q
 Detailed contracts are in [API_USAGE.md](API_USAGE.md), data design in [data/README.md](data/README.md), and model metrics/limits in [MODEL_CARD.md](MODEL_CARD.md).
 
 Before publishing publicly, confirm redistribution rights for the derived models, ATP3 reference table and visual-condition fixtures.
+
+### Model-grounded decision endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/ponds/{pond_id}/ai-insights` | Compact state, deterministic insight and ranked non-mutating actions |
+| POST | `/assistant/chat` | Gemini explanation when configured, deterministic fallback otherwise |
+| GET | `/ponds/{pond_id}/mrv` | Assumption-driven carbon accounting from the live model uptake rate |
+
+### Optional Gemini explanation layer
+
+```bash
+export GEMINI_API_KEY='your-key'
+export GEMINI_MODEL='gemini-3.8-flash'
+```
+
+The key stays in the model API environment and is never sent to the browser. Gemini is constrained to explain supplied AlgaTwin evidence. Scenario ranking and recommendations always come from the local digital twin. If Gemini is unavailable, the assistant returns a deterministic response.

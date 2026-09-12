@@ -1,8 +1,10 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { usePondData } from '../context/pondDataStore';
+import AoiAssistant from './AoiAssistant';
 import Navigation from './Navigation';
 
 export default function AppShell() {
+  const location = useLocation();
   const { connection, ponds, lastSync } = usePondData();
   const labels = {
     connected: 'Live API',
@@ -39,6 +41,7 @@ export default function AppShell() {
         </div>
       </aside>
       <main className="app-main"><Outlet /></main>
+      {location.pathname === '/' && <AoiAssistant />}
     </div>
   );
 }

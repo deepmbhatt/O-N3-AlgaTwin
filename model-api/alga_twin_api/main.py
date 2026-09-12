@@ -5,16 +5,19 @@ from __future__ import annotations
 import base64
 from copy import deepcopy
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 from typing import Any
 import os
 
+import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .registry import ModelRegistry
+from .decision import build_insight, build_mrv, compact_pond_state, local_answer, rank_actions
 from .storage import PredictionStore, configured_prediction_store
 from .streaming import CircularCsvStream, CursorBackend, configured_cursor_backend
 
@@ -67,6 +70,11 @@ class SimulationRequest(BaseModel):
     pond_id: str = Field(min_length=1, max_length=100)
     changes: dict[str, float]
     image_data: ImageData | None = None
+
+
+class AssistantChatRequest(BaseModel):
+    pond_id: str = Field(min_length=1, max_length=100)
+    message: str = Field(min_length=1, max_length=1000)
 
 
 def _dashboard_values(
@@ -533,6 +541,118 @@ def create_app(
                 detail=f"Simulation completed but persistence failed: {error}",
             ) from error
         return {"data": item}
+
+    def decision_package(pond_id: str, optimize: bool = False) -> dict[str, Any]:
+        if pond_id not in engines or pond_id not in latest_records:
+            raise HTTPException(
+                status_code=404,
+                detail="No current streamed row for this pond; call /predict first.",
+            )
+        compact = compact_pond_state(
+            engines[pond_id].current_state,
+            latest_records[pond_id],
+            latest_satellite.get(pond_id),
+            latest_images.get(pond_id),
+        )
+        insight = build_insight(compact)
+        action = rank_actions(engines[pond_id], compact, optimize=optimize)
+        return {"current_state": compact, "insight": insight, "action": action}
+
+    @app.get("/ponds/{pond_id}/ai-insights")
+    def ai_insights(pond_id: str, optimize: bool = False):
+        return {"data": decision_package(pond_id, optimize=optimize)}
+
+    @app.get("/ponds/{pond_id}/mrv")
+    def carbon_mrv(
+        pond_id: str,
+        pond_volume_m3: float = Query(default=1000, gt=0, le=1_000_000),
+        window_hours: float = Query(default=24, gt=0, le=8760),
+        operational_emissions_kg: float = Query(default=0, ge=0, le=1_000_000),
+        permanence_factor: float = Query(default=1, ge=0, le=1),
+    ):
+        package = decision_package(pond_id)
+        return {
+            "data": build_mrv(
+                package["current_state"],
+                pond_volume_m3=pond_volume_m3,
+                window_hours=window_hours,
+                operational_emissions_kg=operational_emissions_kg,
+                permanence_factor=permanence_factor,
+            )
+        }
+
+    @app.post("/assistant/chat")
+    def assistant_chat(body: AssistantChatRequest):
+        optimize = any(
+            word in body.message.lower() for word in ("improve", "optimize", "better")
+        )
+        package = decision_package(body.pond_id, optimize=optimize)
+        answer, intent = local_answer(
+            body.message,
+            package["current_state"],
+            package["insight"],
+            package["action"],
+        )
+        provider = "deterministic_fallback"
+        gemini_error = None
+        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if gemini_key:
+            model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+            evidence = json.dumps(package, separators=(",", ":"), default=str)
+            prompt = (
+                "You are Aoi, the AlgaTwin pond assistant. Explain only the supplied "
+                "digital-twin evidence and ranked simulation results. Never invent causes, "
+                "values, or actions. Never recommend an action absent from "
+                "action.recommended_action. Clearly distinguish measured, estimated, "
+                "predicted, simulated, and verified values. If evidence is insufficient, "
+                "say so. Keep the answer under 120 words.\n\n"
+                f"USER QUESTION: {body.message}\n"
+                f"ALGORITHMIC DRAFT: {answer}\n"
+                f"ALGATWIN EVIDENCE: {evidence}"
+            )
+            try:
+                response = httpx.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                    headers={
+                        "x-goog-api-key": gemini_key,
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "temperature": 0.1,
+                            "maxOutputTokens": 300,
+                        },
+                    },
+                    timeout=15,
+                )
+                response.raise_for_status()
+                parts = response.json()["candidates"][0]["content"]["parts"]
+                generated = "".join(part.get("text", "") for part in parts).strip()
+                if generated:
+                    answer = generated
+                    provider = f"gemini:{model}"
+            except (
+                httpx.HTTPError,
+                KeyError,
+                IndexError,
+                TypeError,
+                ValueError,
+            ) as error:
+                gemini_error = (
+                    "Gemini unavailable; used deterministic fallback "
+                    f"({type(error).__name__})."
+                )
+        return {
+            "answer": answer,
+            "intent": intent,
+            "provider": provider,
+            "provider_notice": gemini_error,
+            "based_on": package["insight"]["provenance"] + ["scenario_search"],
+            "recommended_action": package["action"].get("recommended_action"),
+            "action_state": package["action"]["action_state"],
+            "evidence": package,
+        }
 
     return app
 

@@ -235,12 +235,34 @@ Remote monitoring view highlighting AI-based evidence, remote sensing analysis, 
 
 ## Local Setup & Installation
 
+### MongoDB-free hackathon run
+
+The current frontend uses the FastAPI model service directly and keeps bounded prediction history in process memory. MongoDB and the legacy Node backend are not required:
+
+```bash
+cd O-N3-AlgaTwin
+bash scripts/dev.sh
+```
+
+Open `http://127.0.0.1:5173`. The model API documentation is at `http://127.0.0.1:8000/docs`.
+
+To enable Gemini wording for Aoi, copy the model API environment template and add your key:
+
+```bash
+cp model-api/.env.example model-api/.env
+# Edit model-api/.env and set GEMINI_API_KEY=your-key
+bash scripts/dev.sh
+```
+
+`scripts/dev.sh` loads `model-api/.env` automatically. Aoi decisions remain deterministic and model-backed. Gemini only explains the compact evidence and ranked scenarios; without a key, Aoi uses its deterministic fallback.
+
+
 ### Prerequisites
 
 - Node.js 18+
 - npm or yarn
 - Python 3.10+
-- MongoDB running locally or via Docker
+- MongoDB is optional and is not used by the default hackathon run
 - Git
 
 ### 1. Clone the repository

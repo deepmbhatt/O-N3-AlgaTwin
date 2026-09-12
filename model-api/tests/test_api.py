@@ -77,7 +77,7 @@ def test_health_inventory_and_three_workflow_endpoints():
 
     schema = client.get("/openapi.json").json()
     post_paths = {path for path, methods in schema["paths"].items() if "post" in methods}
-    assert post_paths == {"/predict", "/simulate"}
+    assert {"/predict", "/simulate", "/assistant/chat"} <= post_paths
     assert "/dashboard" in schema["paths"]
 
 
@@ -196,3 +196,42 @@ def test_optional_api_key(monkeypatch):
         json={"include_images": False},
         headers={"X-API-Key": "test-secret"},
     ).status_code == 200
+
+
+def test_insight_action_chat_and_mrv_use_current_models(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    client = _client()
+    client.post("/predict", json={"batch_size": 3, "include_images": True})
+
+    insight = client.get("/ponds/pond-01/ai-insights")
+    assert insight.status_code == 200, insight.text
+    package = insight.json()["data"]
+    assert package["insight"]["action_state"] in {
+        "RECOVER", "STABILIZE", "MAINTAIN", "VERIFY"
+    }
+    assert package["current_state"]["biomass"]["forecast_method"]
+    assert package["action"]["live_state_changed"] is False
+
+    chat = client.post(
+        "/assistant/chat",
+        json={"pond_id": "pond-01", "message": "What should I do?"},
+    )
+    assert chat.status_code == 200, chat.text
+    assert chat.json()["provider"] == "deterministic_fallback"
+    assert chat.json()["answer"]
+
+    mrv = client.get(
+        "/ponds/pond-01/mrv",
+        params={
+            "pond_volume_m3": 1000,
+            "window_hours": 24,
+            "operational_emissions_kg": 1,
+            "permanence_factor": 0.8,
+        },
+    )
+    assert mrv.status_code == 200, mrv.text
+    result = mrv.json()["data"]
+    assert result["status"] == "estimated_not_registry_verified"
+    assert result["inputs"]["pond_volume_m3"] == 1000
+    assert result["methodology"]["scope"] == "gross biological uptake; not net MRV"

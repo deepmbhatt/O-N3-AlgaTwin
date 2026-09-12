@@ -18,6 +18,11 @@ export function PondDataProvider({ children }) {
   const [lastSync, setLastSync] = useState(null);
   const [lastPrediction, setLastPrediction] = useState(null);
   const predictionInFlight = useRef(false);
+  const activePondIdRef = useRef(activePondId);
+
+  useEffect(() => {
+    activePondIdRef.current = activePondId;
+  }, [activePondId]);
 
   const refresh = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setBusy(true);
@@ -33,14 +38,16 @@ export function PondDataProvider({ children }) {
       setConnection(normalized.length ? 'connected' : 'empty');
       setError(normalized.length ? '' : 'API connected. The automatic predictor will create the first pond state shortly.');
       setLastSync(new Date());
-      if (normalized.length && !normalized.some(item => item.pond_id === activePondId)) setActivePondId(normalized[0].pond_id);
+      if (normalized.length && !normalized.some(item => item.pond_id === activePondIdRef.current)) {
+        setActivePondId(normalized[0].pond_id);
+      }
     } catch (requestError) {
       setConnection(allowFallback ? 'fallback' : 'offline');
       setError(requestError.message || 'Unable to reach the AlgaTwin API.');
     } finally {
       if (!quiet) setBusy(false);
     }
-  }, [activePondId]);
+  }, []);
 
   const processNextBurst = useCallback(async ({ background = false } = {}) => {
     if (predictionInFlight.current) return null;
@@ -85,7 +92,7 @@ export function PondDataProvider({ children }) {
   const pondOptions = useMemo(() => ponds.length ? ponds.map(item => ({
     id: item.pond_id,
     name: item.pond_id.replace('-', ' ').replace(/\b\w/g, char => char.toUpperCase()),
-    status: item.snapshot.label,
+    status: item.snapshot?.label || 'Active',
   })) : [
     { id: 'pond-01', name: 'Pond 01', status: connection === 'empty' ? 'Automatic stream pending' : 'Demo fallback' },
     { id: 'pond-02', name: 'Pond 02', status: 'Awaiting live data' },

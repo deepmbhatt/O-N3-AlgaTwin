@@ -1,0 +1,9 @@
+{
+  "changes": {
+    "water_temp_avg_c": 27.5,
+    "nitrate_mg_l": 70,
+    "global_light_w_m2": 280,
+    "co2_ppm": 900
+  }
+}
+

@@ -1,0 +1,26 @@
+{
+  "mae": 0.0691582387399016,
+  "rmse": 0.09198101507661612,
+  "r2": 0.2795015073499564,
+  "median_baseline_mae": 0.09820409262250943,
+  "median_baseline_rmse": 0.12100470565915684,
+  "split": "grouped by experiment_id",
+  "train_rows": 3947,
+  "test_rows": 1857,
+  "train_experiments": [
+    "DEC162014",
+    "JAN292015",
+    "JUL252014",
+    "JUN112014",
+    "MAR122015",
+    "MAY052015",
+    "OCT172013",
+    "SEP102014"
+  ],
+  "held_out_experiments": [
+    "APR032014",
+    "JUN172015",
+    "OCT222014"
+  ],
+  "train_target_median": 0.17
+}

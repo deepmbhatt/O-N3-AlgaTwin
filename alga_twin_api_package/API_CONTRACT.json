@@ -1,0 +1,430 @@
+{
+  "service": {
+    "name": "AlgaTwin Stream, Simulation and Dashboard API",
+    "version": "4.0.0",
+    "base_url_local": "http://localhost:8000",
+    "content_type": "application/json",
+    "authentication": {
+      "required_when": "ALGATWIN_API_KEY is configured",
+      "header_name": "X-API-Key",
+      "public_paths": [
+        "/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc"
+      ]
+    }
+  },
+  "recommended_workflow": [
+    "Cron calls POST /predict to consume the next stream burst.",
+    "Backend or frontend calls GET /dashboard without advancing the stream.",
+    "User calls POST /simulate after the requested pond has been streamed at least once."
+  ],
+  "endpoints": {
+    "predict": {
+      "method": "POST",
+      "path": "/predict",
+      "purpose": "Consume the next circular CSV rows and run IoT, forecast, anomaly, satellite and optional image inference.",
+      "state_effect": "Advances the stream cursor and updates per-pond model history.",
+      "request": {
+        "required_fields": [],
+        "optional_fields": {
+          "batch_size": {
+            "type": "integer",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 100
+          },
+          "reset": {
+            "type": "boolean",
+            "default": false,
+            "description": "Rewind to row 1 and clear in-memory model histories."
+          },
+          "include_images": {
+            "type": "boolean",
+            "default": true
+          },
+          "return_image_base64": {
+            "type": "boolean",
+            "default": true
+          },
+          "images_by_pond": {
+            "type": "object",
+            "default": {},
+            "additional_properties": {
+              "$ref": "#/shared_schemas/image_input"
+            }
+          }
+        },
+        "example": {
+          "batch_size": 3,
+          "include_images": true,
+          "return_image_base64": true
+        }
+      },
+      "response_200": {
+        "type": "object",
+        "fields": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/shared_schemas/prediction_record"
+            }
+          },
+          "cursor": {
+            "$ref": "#/shared_schemas/cursor"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "data": [
+            {
+              "pond_id": "pond-01",
+              "observed_at": "2026-09-12T10:00:00+05:30",
+              "stream_row": 1,
+              "stream_cycle": 0,
+              "source_data": {
+                "stream_row": 1,
+                "stream_cycle": 0,
+                "time_step": 1,
+                "pond_id": "pond-01",
+                "observed_at": "2026-09-12T10:00:00+05:30",
+                "condition_label": "stable",
+                "condition_severity": 0.08,
+                "record_provenance": "synthetic_gradual_stream",
+                "iot_data": {
+                  "sensor_ph": 8.05,
+                  "water_temp_avg_c": 26.0,
+                  "do_mg_l": 8.6,
+                  "nitrate_mg_l": 55.0
+                },
+                "satellite_data": {
+                  "date": "2026-09-12T10:00:00+05:30",
+                  "red": 0.0956,
+                  "green": 0.1652,
+                  "blue": 0.1172,
+                  "RE1": 0.1372,
+                  "latitude": 40.15,
+                  "longitude": -111.86,
+                  "dataset": "whole-lake",
+                  "category": "whole-lake"
+                },
+                "image": {
+                  "available": true,
+                  "filename": "pond-01-step-001.jpg",
+                  "expected_condition": "OPTIMUM",
+                  "image_provenance": "fishpond_visual_condition_v2_fixture",
+                  "association_provenance": "synthetic_condition_matched_mapping",
+                  "base64": "BASE64_IMAGE_DATA"
+                }
+              },
+              "dashboard": {
+                "current_biomass_g_l": 0.31,
+                "biomass_6h_g_l": 0.28,
+                "biomass_24h_g_l": 0.31,
+                "health_score": 86.0,
+                "health_band": "healthy",
+                "anomaly_probability": 0.24,
+                "anomaly_severity": "normal",
+                "gross_co2_uptake_rate_g_l_h": 0.0,
+                "chlorophyll_a": 24.2,
+                "turbidity": 5.8,
+                "image_state": "OPTIMUM",
+                "image_confidence": 0.81
+              },
+              "insights": [
+                {
+                  "severity": "info",
+                  "code": "HEALTH_STABLE",
+                  "message": "Pond health is currently stable."
+                }
+              ],
+              "results": {
+                "digital_twin": "FULL_DIGITAL_TWIN_OBJECT",
+                "satellite": "FULL_SATELLITE_RESULT_OBJECT",
+                "image": "FULL_IMAGE_RESULT_OBJECT"
+              }
+            }
+          ],
+          "cursor": {
+            "start_row": 1,
+            "next_row": 4,
+            "batch_size": 3,
+            "total_rows": 999,
+            "cycle": 0,
+            "restarted": false,
+            "mode": "circular"
+          },
+          "message": "Processed 3 streamed pond reading(s)."
+        }
+      }
+    },
+    "simulate": {
+      "method": "POST",
+      "path": "/simulate",
+      "purpose": "Apply custom changes to the latest streamed baseline for one pond.",
+      "precondition": "POST /predict must have processed the selected pond at least once in the current API process.",
+      "state_effect": "Does not advance the cursor and does not modify live pond state. The result is added to simulation history.",
+      "request": {
+        "required_fields": [
+          "pond_id",
+          "changes"
+        ],
+        "optional_fields": {
+          "image_data": {
+            "$ref": "#/shared_schemas/image_input"
+          }
+        },
+        "supported_change_fields": [
+          "water_temp_avg_c",
+          "sensor_ph",
+          "nitrate_mg_l",
+          "phosphorus_mg_l",
+          "par_umol_m2_s",
+          "global_light_w_m2",
+          "co2_ppm"
+        ],
+        "example": {
+          "pond_id": "pond-02",
+          "changes": {
+            "water_temp_avg_c": 27.5,
+            "nitrate_mg_l": 50.0,
+            "global_light_w_m2": 280.0,
+            "co2_ppm": 900.0
+          },
+          "image_data": {
+            "filename": "current-pond.jpg",
+            "image_base64": "BASE64_IMAGE_DATA"
+          }
+        }
+      },
+      "response_200": {
+        "type": "object",
+        "fields": {
+          "data": {
+            "type": "object",
+            "fields": {
+              "pond_id": "string",
+              "created_at": "ISO-8601 UTC string",
+              "baseline_source_data": "object",
+              "submitted_image": "object or null",
+              "dashboard": "object",
+              "insights": "array",
+              "baseline": "full digital-twin baseline object",
+              "simulation": "full scenario result object",
+              "satellite": "object or null",
+              "image": "object or null",
+              "live_state_changed": false,
+              "cursor_advanced": false,
+              "image_is_supporting_evidence_only": true
+            }
+          }
+        },
+        "example": {
+          "data": {
+            "pond_id": "pond-02",
+            "created_at": "2026-09-12T05:00:10+00:00",
+            "baseline_source_data": "LATEST_STREAM_SOURCE_DATA",
+            "submitted_image": {
+              "filename": "current-pond.jpg",
+              "image_base64": "BASE64_IMAGE_DATA",
+              "provenance": "user_supplied_for_simulation"
+            },
+            "dashboard": {
+              "current_biomass_g_l": 0.27,
+              "simulated_biomass_g_l": 0.29,
+              "biomass_delta_g_l": 0.02,
+              "relative_biomass_delta_pct": 7.4,
+              "simulated_health_score": 88.0,
+              "simulation_classification": "beneficial",
+              "image_state": "OPTIMUM",
+              "image_confidence": 0.8
+            },
+            "insights": [
+              {
+                "severity": "success",
+                "code": "SCENARIO_OUTCOME",
+                "message": "Scenario is beneficial; simulated biomass change is +7.4%."
+              }
+            ],
+            "baseline": "FULL_BASELINE_OBJECT",
+            "simulation": "FULL_SIMULATION_OBJECT",
+            "satellite": "LATEST_SATELLITE_RESULT",
+            "image": "IMAGE_CLASSIFICATION_RESULT",
+            "live_state_changed": false,
+            "cursor_advanced": false,
+            "image_is_supporting_evidence_only": true
+          }
+        }
+      }
+    },
+    "dashboard": {
+      "method": "GET",
+      "path": "/dashboard",
+      "purpose": "Read latest prediction, sensor data, images, insights, history and simulations without consuming CSV rows.",
+      "query_parameters": {
+        "pond_id": {
+          "type": "string",
+          "required": false,
+          "description": "Omit to return every pond."
+        },
+        "limit": {
+          "type": "integer",
+          "required": false,
+          "default": 20,
+          "minimum": 1,
+          "maximum": 500
+        }
+      },
+      "examples": [
+        "/dashboard?limit=20",
+        "/dashboard?pond_id=pond-02&limit=50"
+      ],
+      "response_200": {
+        "type": "object",
+        "fields": {
+          "data": {
+            "type": "array",
+            "items": {
+              "pond_id": "string",
+              "latest": {
+                "$ref": "#/shared_schemas/prediction_record"
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/shared_schemas/prediction_record"
+                }
+              },
+              "returned_history_count": "integer",
+              "latest_simulation": "object or null",
+              "simulation_history": "array"
+            }
+          },
+          "query": "applied query parameters",
+          "cursor": {
+            "position": "integer",
+            "cycle": "integer"
+          }
+        }
+      }
+    },
+    "health": {
+      "method": "GET",
+      "path": "/health",
+      "purpose": "Read model readiness, artifacts, stream row count and cursor position.",
+      "request": null,
+      "response_200": {
+        "status": "ok",
+        "ready": true,
+        "model_families": 6,
+        "logical_estimators": 9,
+        "stream": {
+          "file": "pond_iot_stream.csv",
+          "total_rows": 999,
+          "position": 0,
+          "cycle": 0
+        }
+      }
+    },
+    "models": {
+      "method": "GET",
+      "path": "/models",
+      "purpose": "Return the complete bundled model manifest.",
+      "request": null,
+      "response_200": "Contents of models/model_manifest.json"
+    },
+    "swagger": {
+      "method": "GET",
+      "path": "/docs",
+      "purpose": "Interactive Swagger API documentation."
+    },
+    "openapi": {
+      "method": "GET",
+      "path": "/openapi.json",
+      "purpose": "Generated OpenAPI schema."
+    },
+    "redoc": {
+      "method": "GET",
+      "path": "/redoc",
+      "purpose": "Alternative ReDoc API documentation."
+    }
+  },
+  "shared_schemas": {
+    "image_input": {
+      "type": "object",
+      "required_fields": [
+        "image_base64"
+      ],
+      "fields": {
+        "filename": {
+          "type": "string",
+          "default": "upload.jpg"
+        },
+        "image_base64": {
+          "type": "string",
+          "format": "base64",
+          "maximum_decoded_size": "10 MB",
+          "supported_content": [
+            "JPEG",
+            "PNG",
+            "WebP"
+          ]
+        }
+      }
+    },
+    "cursor": {
+      "type": "object",
+      "fields": {
+        "start_row": "integer",
+        "next_row": "integer",
+        "batch_size": "integer",
+        "total_rows": 999,
+        "cycle": "integer",
+        "restarted": "boolean",
+        "mode": "circular"
+      }
+    },
+    "prediction_record": {
+      "type": "object",
+      "fields": {
+        "pond_id": "string",
+        "observed_at": "ISO-8601 string",
+        "stream_row": "integer",
+        "stream_cycle": "integer",
+        "source_data": {
+          "type": "object",
+          "fields": {
+            "iot_data": "original IoT feature object",
+            "satellite_data": "original reflectance/location object",
+            "image": "image metadata and optional base64"
+          }
+        },
+        "dashboard": "compact frontend-ready metrics object",
+        "insights": "array of severity/code/message objects",
+        "results": {
+          "digital_twin": "full biomass/forecast/anomaly/health/carbon object",
+          "satellite": "chlorophyll-a and turbidity result",
+          "image": "visual condition probabilities or null"
+        }
+      }
+    }
+  },
+  "errors": {
+    "401": "Missing or invalid X-API-Key.",
+    "404": "No dashboard history for pond, or simulation requested before pond was streamed.",
+    "422": "Invalid batch size, image, model input, or unsupported scenario change.",
+    "503": "Simulation completed but persistence failed."
+  },
+  "frontend_paths": {
+    "prediction_array": "response.data.data",
+    "current_iot": "dashboardResponse.data[0].latest.source_data.iot_data",
+    "current_metrics": "dashboardResponse.data[0].latest.dashboard",
+    "current_insights": "dashboardResponse.data[0].latest.insights",
+    "current_image_base64": "dashboardResponse.data[0].latest.source_data.image.base64",
+    "prediction_history": "dashboardResponse.data[0].history",
+    "latest_simulation": "dashboardResponse.data[0].latest_simulation"
+  }
+}

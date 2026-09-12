@@ -9,6 +9,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY alga_twin_api ./alga_twin_api
 COPY models ./models
+COPY data ./data
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

@@ -1,0 +1,541 @@
+{
+  "bursts": [
+    {
+      "burst": 1,
+      "cursor": {
+        "start_row": 1,
+        "next_row": 4,
+        "batch_size": 3,
+        "total_rows": 999,
+        "cycle": 0,
+        "restarted": false,
+        "mode": "circular"
+      },
+      "ponds": [
+        {
+          "pond_id": "pond-01",
+          "condition_label": "stable",
+          "condition_severity": 0.08,
+          "observed_at": "2026-09-12T10:00:00+05:30",
+          "image": {
+            "filename": "pond-01-step-001.jpg",
+            "expected_condition": "OPTIMUM",
+            "prediction": {
+              "state": "OPTIMUM",
+              "confidence": 0.6350756947554217,
+              "probabilities": {
+                "HIGH_PH": 0.3231417194903353,
+                "HIGH_PH; HIGH_TEMP": 0.006990240950877325,
+                "LOW_PH": 0.0,
+                "LOW_TEMP": 0.003943094949177437,
+                "LOW_TEMP;HIGH_PH": 0.03084924985418828,
+                "OPTIMUM": 0.6350756947554217
+              },
+              "provenance": "estimated_from_image",
+              "filename": "pond-01-step-001.jpg"
+            }
+          },
+          "dashboard": {
+            "current_biomass_g_l": 0.326884,
+            "biomass_6h_g_l": 0.171544,
+            "biomass_24h_g_l": 0.326884,
+            "health_score": 89.32,
+            "health_band": "healthy",
+            "anomaly_probability": 0.2375,
+            "anomaly_severity": "normal",
+            "gross_co2_uptake_rate_g_l_h": 0.0,
+            "chlorophyll_a": 65.75593005618654,
+            "turbidity": 47.06428444266246,
+            "image_state": "OPTIMUM",
+            "image_confidence": 0.6350756947554217
+          },
+          "insights": [
+            {
+              "severity": "info",
+              "code": "HEALTH_STABLE",
+              "message": "Pond health is currently 89.3/100."
+            },
+            {
+              "severity": "info",
+              "code": "BIOMASS_TREND_6H",
+              "message": "Biomass is predicted to decrease over 6 hours (-47.5%)."
+            },
+            {
+              "severity": "info",
+              "code": "VISUAL_CONDITION_MATCH",
+              "message": "Image model classified the pond as OPTIMUM with 63.5% confidence; mapped fixture condition is OPTIMUM."
+            }
+          ]
+        },
+        {
+          "pond_id": "pond-02",
+          "condition_label": "heat_low_oxygen_normal",
+          "condition_severity": 0.08,
+          "observed_at": "2026-09-12T10:00:00+05:30",
+          "image": {
+            "filename": "pond-02-step-001.jpg",
+            "expected_condition": "OPTIMUM",
+            "prediction": {
+              "state": "OPTIMUM",
+              "confidence": 0.5528954263889291,
+              "probabilities": {
+                "HIGH_PH": 0.22980788376309286,
+                "HIGH_PH; HIGH_TEMP": 0.21307046064791807,
+                "LOW_PH": 0.0,
+                "LOW_TEMP": 0.0,
+                "LOW_TEMP;HIGH_PH": 0.0042262292000597385,
+                "OPTIMUM": 0.5528954263889291
+              },
+              "provenance": "estimated_from_image",
+              "filename": "pond-02-step-001.jpg"
+            }
+          },
+          "dashboard": {
+            "current_biomass_g_l": 0.279692,
+            "biomass_6h_g_l": 0.154521,
+            "biomass_24h_g_l": 0.279692,
+            "health_score": 87.42,
+            "health_band": "healthy",
+            "anomaly_probability": 0.2795,
+            "anomaly_severity": "normal",
+            "gross_co2_uptake_rate_g_l_h": 0.0,
+            "chlorophyll_a": 65.76566954101472,
+            "turbidity": 47.06428444266246,
+            "image_state": "OPTIMUM",
+            "image_confidence": 0.5528954263889291
+          },
+          "insights": [
+            {
+              "severity": "info",
+              "code": "HEALTH_STABLE",
+              "message": "Pond health is currently 87.4/100."
+            },
+            {
+              "severity": "info",
+              "code": "BIOMASS_TREND_6H",
+              "message": "Biomass is predicted to decrease over 6 hours (-44.8%)."
+            },
+            {
+              "severity": "info",
+              "code": "VISUAL_CONDITION_MATCH",
+              "message": "Image model classified the pond as OPTIMUM with 55.3% confidence; mapped fixture condition is OPTIMUM."
+            }
+          ]
+        },
+        {
+          "pond_id": "pond-03",
+          "condition_label": "nutrient_light_limited_normal",
+          "condition_severity": 0.1,
+          "observed_at": "2026-09-12T10:00:00+05:30",
+          "image": {
+            "filename": "pond-03-step-001.jpg",
+            "expected_condition": "OPTIMUM",
+            "prediction": {
+              "state": "OPTIMUM",
+              "confidence": 0.6997088729543609,
+              "probabilities": {
+                "HIGH_PH": 0.2654201394258758,
+                "HIGH_PH; HIGH_TEMP": 0.029084947419581494,
+                "LOW_PH": 0.0,
+                "LOW_TEMP": 0.002796674225245654,
+                "LOW_TEMP;HIGH_PH": 0.002989365974935926,
+                "OPTIMUM": 0.6997088729543609
+              },
+              "provenance": "estimated_from_image",
+              "filename": "pond-03-step-001.jpg"
+            }
+          },
+          "dashboard": {
+            "current_biomass_g_l": 0.255286,
+            "biomass_6h_g_l": 0.11361,
+            "biomass_24h_g_l": 0.255286,
+            "health_score": 86.53,
+            "health_band": "healthy",
+            "anomaly_probability": 0.2993,
+            "anomaly_severity": "normal",
+            "gross_co2_uptake_rate_g_l_h": 0.0,
+            "chlorophyll_a": 63.718432988728296,
+            "turbidity": 46.87978077443402,
+            "image_state": "OPTIMUM",
+            "image_confidence": 0.6997088729543609
+          },
+          "insights": [
+            {
+              "severity": "info",
+              "code": "HEALTH_STABLE",
+              "message": "Pond health is currently 86.5/100."
+            },
+            {
+              "severity": "info",
+              "code": "BIOMASS_TREND_6H",
+              "message": "Biomass is predicted to decrease over 6 hours (-55.5%)."
+            },
+            {
+              "severity": "info",
+              "code": "VISUAL_CONDITION_MATCH",
+              "message": "Image model classified the pond as OPTIMUM with 70.0% confidence; mapped fixture condition is OPTIMUM."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "burst": 2,
+      "cursor": {
+        "start_row": 4,
+        "next_row": 7,
+        "batch_size": 3,
+        "total_rows": 999,
+        "cycle": 0,
+        "restarted": false,
+        "mode": "circular"
+      },
+      "ponds": [
+        {
+          "pond_id": "pond-01",
+          "condition_label": "stable",
+          "condition_severity": 0.08076,
+          "observed_at": "2026-09-12T10:00:10+05:30",
+          "image": {
+            "filename": "pond-01-step-002.jpg",
+            "expected_condition": "OPTIMUM",
+            "prediction": {
+              "state": "OPTIMUM",
+              "confidence": 0.6469734024612526,
+              "probabilities": {
+                "HIGH_PH": 0.24538624324504837,
+                "HIGH_PH; HIGH_TEMP": 0.10326501887362483,
+                "LOW_PH": 0.0,
+                "LOW_TEMP": 0.0028376401755241345,
+                "LOW_TEMP;HIGH_PH": 0.0015376952445495871,
+                "OPTIMUM": 0.6469734024612526
+              },
+              "provenance": "estimated_from_image",
+              "filename": "pond-01-step-002.jpg"
+            }
+          },
+          "dashboard": {
+            "current_biomass_g_l": 0.327087,
+            "biomass_6h_g_l": 0.171544,
+            "biomass_24h_g_l": 0.327087,
+            "health_score": 96.95,
+            "health_band": "healthy",
+            "anomaly_probability": 0.0677,
+            "anomaly_severity": "normal",
+            "gross_co2_uptake_rate_g_l_h": 0.0,
+            "chlorophyll_a": 65.75593005618654,
+            "turbidity": 47.06428444266246,
+            "image_state": "OPTIMUM",
+            "image_confidence": 0.6469734024612526
+          },
+          "insights": [
+            {
+              "severity": "info",
+              "code": "HEALTH_STABLE",
+              "message": "Pond health is currently 97.0/100."
+            },
+            {
+              "severity": "info",
+              "code": "BIOMASS_TREND_6H",
+              "message": "Biomass is predicted to decrease over 6 hours (-47.6%)."
+            },
+            {
+              "severity": "info",
+              "code": "VISUAL_CONDITION_MATCH",
+              "message": "Image model classified the pond as OPTIMUM with 64.7% confidence; mapped fixture condition is OPTIMUM."
+            }
+          ]
+        },
+        {
+          "pond_id": "pond-02",
+          "condition_label": "heat_low_oxygen_normal",
+          "condition_severity": 0.08005,
+          "observed_at": "2026-09-12T10:00:10+05:30",
+          "image": {
+            "filename": "pond-02-step-002.jpg",
+            "expected_condition": "OPTIMUM",
+            "prediction": {
+              "state": "OPTIMUM",
+              "confidence": 0.6052011232121,
+              "probabilities": {
+                "HIGH_PH": 0.20054801025700053,
+                "HIGH_PH; HIGH_TEMP": 0.18480776645202193,
+                "LOW_PH": 0.004262117218909269,
+                "LOW_TEMP": 0.0,
+                "LOW_TEMP;HIGH_PH": 0.0051809828599683316,
+                "OPTIMUM": 0.6052011232121
+              },
+              "provenance": "estimated_from_image",
+              "filename": "pond-02-step-002.jpg"
+            }
+          },
+          "dashboard": {
+            "current_biomass_g_l": 0.279692,
+            "biomass_6h_g_l": 0.154521,
+            "biomass_24h_g_l": 0.279692,
+            "health_score": 93.33,
+            "health_band": "healthy",
+            "anomaly_probability": 0.1443,
+            "anomaly_severity": "normal",
+            "gross_co2_uptake_rate_g_l_h": 0.0,
+            "chlorophyll_a": 65.76566954101472,
+            "turbidity": 47.06428444266246,
+            "image_state": "OPTIMUM",
+            "image_confidence": 0.6052011232121
+          },
+          "insights": [
+            {
+              "severity": "info",
+              "code": "HEALTH_STABLE",
+              "message": "Pond health is currently 93.3/100."
+            },
+            {
+              "severity": "info",
+              "code": "BIOMASS_TREND_6H",
+              "message": "Biomass is predicted to decrease over 6 hours (-44.8%)."
+            },
+            {
+              "severity": "info",
+              "code": "VISUAL_CONDITION_MATCH",
+              "message": "Image model classified the pond as OPTIMUM with 60.5% confidence; mapped fixture condition is OPTIMUM."
+            }
+          ]
+        },
+        {
+          "pond_id": "pond-03",
+          "condition_label": "nutrient_light_limited_normal",
+          "condition_severity": 0.10006,
+          "observed_at": "2026-09-12T10:00:10+05:30",
+          "image": {
+            "filename": "pond-03-step-002.jpg",
+            "expected_condition": "OPTIMUM",
+            "prediction": {
+              "state": "OPTIMUM",
+              "confidence": 0.7494468077573263,
+              "probabilities": {
+                "HIGH_PH": 0.20009011257024692,
+                "HIGH_PH; HIGH_TEMP": 0.014316191764129148,
+                "LOW_PH": 0.0,
+                "LOW_TEMP": 0.016648345279434214,
+                "LOW_TEMP;HIGH_PH": 0.019498542628863563,
+                "OPTIMUM": 0.7494468077573263
+              },
+              "provenance": "estimated_from_image",
+              "filename": "pond-03-step-002.jpg"
+            }
+          },
+          "dashboard": {
+            "current_biomass_g_l": 0.255286,
+            "biomass_6h_g_l": 0.11361,
+            "biomass_24h_g_l": 0.255286,
+            "health_score": 92.25,
+            "health_band": "healthy",
+            "anomaly_probability": 0.1711,
+            "anomaly_severity": "normal",
+            "gross_co2_uptake_rate_g_l_h": 0.0,
+            "chlorophyll_a": 63.718432988728296,
+            "turbidity": 47.04434325542348,
+            "image_state": "OPTIMUM",
+            "image_confidence": 0.7494468077573263
+          },
+          "insights": [
+            {
+              "severity": "info",
+              "code": "HEALTH_STABLE",
+              "message": "Pond health is currently 92.2/100."
+            },
+            {
+              "severity": "info",
+              "code": "BIOMASS_TREND_6H",
+              "message": "Biomass is predicted to decrease over 6 hours (-55.5%)."
+            },
+            {
+              "severity": "info",
+              "code": "VISUAL_CONDITION_MATCH",
+              "message": "Image model classified the pond as OPTIMUM with 74.9% confidence; mapped fixture condition is OPTIMUM."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "burst": 3,
+      "cursor": {
+        "start_row": 7,
+        "next_row": 10,
+        "batch_size": 3,
+        "total_rows": 999,
+        "cycle": 0,
+        "restarted": false,
+        "mode": "circular"
+      },
+      "ponds": [
+        {
+          "pond_id": "pond-01",
+          "condition_label": "stable",
+          "condition_severity": 0.08151,
+          "observed_at": "2026-09-12T10:00:20+05:30",
+          "image": {
+            "filename": "pond-01-step-003.jpg",
+            "expected_condition": "OPTIMUM",
+            "prediction": {
+              "state": "OPTIMUM",
+              "confidence": 0.7033227583989937,
+              "probabilities": {
+                "HIGH_PH": 0.24269070379580987,
+                "HIGH_PH; HIGH_TEMP": 0.022419780734922373,
+                "LOW_PH": 0.0,
+                "LOW_TEMP": 0.002747332105459588,
+                "LOW_TEMP;HIGH_PH": 0.02881942496481413,
+                "OPTIMUM": 0.7033227583989937
+              },
+              "provenance": "estimated_from_image",
+              "filename": "pond-01-step-003.jpg"
+            }
+          },
+          "dashboard": {
+            "current_biomass_g_l": 0.327141,
+            "biomass_6h_g_l": 0.171422,
+            "biomass_24h_g_l": 0.327141,
+            "health_score": 96.95,
+            "health_band": "healthy",
+            "anomaly_probability": 0.0677,
+            "anomaly_severity": "normal",
+            "gross_co2_uptake_rate_g_l_h": 0.0,
+            "chlorophyll_a": 65.75593005618654,
+            "turbidity": 47.06428444266246,
+            "image_state": "OPTIMUM",
+            "image_confidence": 0.7033227583989937
+          },
+          "insights": [
+            {
+              "severity": "info",
+              "code": "HEALTH_STABLE",
+              "message": "Pond health is currently 97.0/100."
+            },
+            {
+              "severity": "info",
+              "code": "BIOMASS_TREND_6H",
+              "message": "Biomass is predicted to decrease over 6 hours (-47.6%)."
+            },
+            {
+              "severity": "info",
+              "code": "VISUAL_CONDITION_MATCH",
+              "message": "Image model classified the pond as OPTIMUM with 70.3% confidence; mapped fixture condition is OPTIMUM."
+            }
+          ]
+        },
+        {
+          "pond_id": "pond-02",
+          "condition_label": "heat_low_oxygen_normal",
+          "condition_severity": 0.08022,
+          "observed_at": "2026-09-12T10:00:20+05:30",
+          "image": {
+            "filename": "pond-02-step-003.jpg",
+            "expected_condition": "OPTIMUM",
+            "prediction": {
+              "state": "OPTIMUM",
+              "confidence": 0.6374558799329528,
+              "probabilities": {
+                "HIGH_PH": 0.3198025060232671,
+                "HIGH_PH; HIGH_TEMP": 0.03084380376581911,
+                "LOW_PH": 0.0,
+                "LOW_TEMP": 0.0,
+                "LOW_TEMP;HIGH_PH": 0.011897810277960658,
+                "OPTIMUM": 0.6374558799329528
+              },
+              "provenance": "estimated_from_image",
+              "filename": "pond-02-step-003.jpg"
+            }
+          },
+          "dashboard": {
+            "current_biomass_g_l": 0.279354,
+            "biomass_6h_g_l": 0.154453,
+            "biomass_24h_g_l": 0.279354,
+            "health_score": 73.5,
+            "health_band": "watch",
+            "anomaly_probability": 0.1443,
+            "anomaly_severity": "normal",
+            "gross_co2_uptake_rate_g_l_h": 0.0,
+            "chlorophyll_a": 65.76566954101472,
+            "turbidity": 47.06428444266246,
+            "image_state": "OPTIMUM",
+            "image_confidence": 0.6374558799329528
+          },
+          "insights": [
+            {
+              "severity": "warning",
+              "code": "HEALTH_WATCH",
+              "message": "Pond health needs attention at 73.5/100."
+            },
+            {
+              "severity": "info",
+              "code": "BIOMASS_TREND_6H",
+              "message": "Biomass is predicted to decrease over 6 hours (-44.7%)."
+            },
+            {
+              "severity": "info",
+              "code": "VISUAL_CONDITION_MATCH",
+              "message": "Image model classified the pond as OPTIMUM with 63.7% confidence; mapped fixture condition is OPTIMUM."
+            }
+          ]
+        },
+        {
+          "pond_id": "pond-03",
+          "condition_label": "nutrient_light_limited_normal",
+          "condition_severity": 0.10025,
+          "observed_at": "2026-09-12T10:00:20+05:30",
+          "image": {
+            "filename": "pond-03-step-003.jpg",
+            "expected_condition": "OPTIMUM",
+            "prediction": {
+              "state": "OPTIMUM",
+              "confidence": 0.751591733218424,
+              "probabilities": {
+                "HIGH_PH": 0.206660672731995,
+                "HIGH_PH; HIGH_TEMP": 0.008261050981232523,
+                "LOW_PH": 0.0,
+                "LOW_TEMP": 0.007882552292460147,
+                "LOW_TEMP;HIGH_PH": 0.02560399077588821,
+                "OPTIMUM": 0.751591733218424
+              },
+              "provenance": "estimated_from_image",
+              "filename": "pond-03-step-003.jpg"
+            }
+          },
+          "dashboard": {
+            "current_biomass_g_l": 0.254679,
+            "biomass_6h_g_l": 0.113737,
+            "biomass_24h_g_l": 0.254679,
+            "health_score": 72.3,
+            "health_band": "watch",
+            "anomaly_probability": 0.1711,
+            "anomaly_severity": "normal",
+            "gross_co2_uptake_rate_g_l_h": 0.0,
+            "chlorophyll_a": 63.718432988728296,
+            "turbidity": 47.04434325542348,
+            "image_state": "OPTIMUM",
+            "image_confidence": 0.751591733218424
+          },
+          "insights": [
+            {
+              "severity": "warning",
+              "code": "HEALTH_WATCH",
+              "message": "Pond health needs attention at 72.3/100."
+            },
+            {
+              "severity": "info",
+              "code": "BIOMASS_TREND_6H",
+              "message": "Biomass is predicted to decrease over 6 hours (-55.3%)."
+            },
+            {
+              "severity": "info",
+              "code": "VISUAL_CONDITION_MATCH",
+              "message": "Image model classified the pond as OPTIMUM with 75.2% confidence; mapped fixture condition is OPTIMUM."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

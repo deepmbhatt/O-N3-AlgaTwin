@@ -1,189 +1,233 @@
-# Two-endpoint API usage
+# API usage
 
-Base URL during local development:
+Local base URL: `http://localhost:8000`
 
-```text
-http://localhost:8000
-```
+All model inputs and outputs use JSON. Set `ALGATWIN_API_KEY` and send `X-API-Key` when authentication is enabled.
 
-All inputs and outputs use JSON.
+## POST /predict
 
-## 1. Prediction endpoint
-
-`POST /predict`
-
-Use this endpoint for incoming IoT readings, satellite reflectance, a pond image, or any combination of them.
-
-### Request shape
+Cron calls this stateful endpoint to consume the next circular CSV rows.
 
 ```json
 {
-  "pond_id": "pond-01",
-  "observed_at": "2026-09-12T10:00:00+05:30",
-  "iot_data": {
-    "site_id": "ASU",
-    "strain_id": "KA32",
-    "sensor_ph": 8.2,
-    "water_temp_avg_c": 28.4,
-    "do_mg_l": 7.8,
-    "nitrate_mg_l": 45,
-    "phosphorus_mg_l": 3.1,
-    "global_light_w_m2": 320
-  },
-  "satellite_data": {
-    "red": 0.10,
-    "green": 0.16,
-    "blue": 0.12,
-    "RE1": 0.11,
-    "latitude": 40.15,
-    "longitude": -111.86,
-    "dataset": "whole-lake",
-    "category": "whole-lake"
+  "batch_size": 3,
+  "include_images": true,
+  "return_image_base64": true
+}
+```
+
+Options:
+
+| Field | Default | Meaning |
+|---|---:|---|
+| `batch_size` | 3 | Rows to process, 1–100 |
+| `reset` | false | Rewind to row 1 and clear model histories |
+| `include_images` | true | Load and classify each row's mapped image |
+| `return_image_base64` | true | Include displayable image bytes in JSON |
+| `images_by_pond` | {} | Optional base64 images overriding mapped fixtures |
+
+Override example:
+
+```json
+{
+  "batch_size": 3,
+  "images_by_pond": {
+    "pond-01": {
+      "filename": "current.jpg",
+      "image_base64": "BASE64_DATA"
+    }
   }
 }
 ```
 
-At least one of `iot_data`, `satellite_data`, or `image_data` is required. For an image, add:
+Response:
 
 ```json
 {
-  "image_data": {
-    "filename": "pond.jpg",
-    "image_base64": "BASE64_ENCODED_IMAGE"
+  "data": [
+    {
+      "pond_id": "pond-01",
+      "observed_at": "2026-09-12T10:00:00+05:30",
+      "stream_row": 1,
+      "stream_cycle": 0,
+      "source_data": {
+        "iot_data": {},
+        "satellite_data": {},
+        "image": {
+          "filename": "pond-01-step-001.jpg",
+          "expected_condition": "OPTIMUM",
+          "image_provenance": "fishpond_visual_condition_v2_fixture",
+          "association_provenance": "synthetic_condition_matched_mapping",
+          "base64": "..."
+        }
+      },
+      "dashboard": {
+        "current_biomass_g_l": 0.31,
+        "biomass_6h_g_l": 0.28,
+        "biomass_24h_g_l": 0.31,
+        "health_score": 86,
+        "health_band": "healthy",
+        "anomaly_probability": 0.24,
+        "anomaly_severity": "normal",
+        "chlorophyll_a": 24.2,
+        "turbidity": 5.8,
+        "image_state": "OPTIMUM",
+        "image_confidence": 0.81
+      },
+      "insights": [],
+      "results": {
+        "digital_twin": {},
+        "satellite": {},
+        "image": {}
+      }
+    }
+  ],
+  "cursor": {
+    "start_row": 1,
+    "next_row": 4,
+    "batch_size": 3,
+    "total_rows": 999,
+    "cycle": 0,
+    "restarted": false,
+    "mode": "circular"
   }
 }
 ```
 
-The satellite `date` field is optional and defaults to `observed_at`. `dataset` and `category` default to `custom`. Latitude, longitude and four reflectance bands are required when satellite data is supplied.
+For Axios, the pond array is `response.data.data`. Avoid overlapping cron executions.
 
-### Response shape
+## POST /simulate
 
-```json
-{
-  "request_type": "prediction",
-  "pond_id": "pond-01",
-  "observed_at": "2026-09-12T10:00:00+05:30",
-  "dashboard": {
-    "current_biomass_g_l": 0.31,
-    "biomass_6h_g_l": 0.32,
-    "biomass_24h_g_l": 0.31,
-    "health_score": 86.0,
-    "health_band": "healthy",
-    "anomaly_probability": 0.24,
-    "anomaly_severity": "normal",
-    "gross_co2_uptake_rate_g_l_h": 0.001,
-    "chlorophyll_a": 24.2,
-    "turbidity": 5.8
-  },
-  "results": {
-    "digital_twin": {},
-    "satellite": {},
-    "image": null
-  }
-}
-```
-
-Values for omitted input types are `null`. Sending repeated IoT observations with the same `pond_id` maintains that pond's in-memory history.
-
-Example:
-
-```bash
-curl -X POST http://localhost:8000/predict \
-  -H 'Content-Type: application/json' \
-  --data @examples/predict.json
-```
-
-## 2. Simulation endpoint
-
-`POST /simulate`
-
-This endpoint is self-contained: send a custom baseline and the changes you want to test. It does not require an earlier prediction call and does not alter live pond state.
-
-### Request shape
+Uses the latest streamed baseline for one pond. It does not advance the cursor or change live state.
 
 ```json
 {
-  "pond_id": "pond-01-scenario",
-  "observed_at": "2026-09-12T10:00:00+05:30",
-  "baseline_iot_data": {
-    "site_id": "ASU",
-    "strain_id": "KA32",
-    "sensor_ph": 8.2,
-    "water_temp_avg_c": 28.4,
-    "do_mg_l": 7.8,
-    "nitrate_mg_l": 45,
-    "phosphorus_mg_l": 3.1,
-    "global_light_w_m2": 320
-  },
+  "pond_id": "pond-02",
   "changes": {
     "water_temp_avg_c": 27.5,
-    "nitrate_mg_l": 70,
+    "nitrate_mg_l": 50,
     "global_light_w_m2": 280,
     "co2_ppm": 900
+  },
+  "image_data": {
+    "filename": "uploaded-current-view.jpg",
+    "image_base64": "BASE64_DATA"
   }
 }
 ```
 
-Supported scenario controls are water temperature, pH, nitrate, phosphorus, PAR, global light and experimental CO2. Optional `satellite_data` uses the same structure as `/predict`.
+`image_data` is optional. Without it, the latest streamed image result is returned. Image classification is supporting evidence only and does not causally change simulated biomass.
 
-### Response shape
+Response is under `data` and includes:
+
+- `baseline_source_data`;
+- `dashboard` including simulated values;
+- `insights`;
+- full `baseline` and `simulation`;
+- satellite and image results;
+- `live_state_changed: false`;
+- `cursor_advanced: false`.
+
+Call `/predict` at least once for the chosen pond before simulation.
+
+## GET /dashboard
+
+Read-only endpoint. It never advances the stream.
+
+All ponds:
+
+```http
+GET /dashboard?limit=20
+```
+
+One pond:
+
+```http
+GET /dashboard?pond_id=pond-02&limit=50
+```
+
+Response:
 
 ```json
 {
-  "request_type": "simulation",
-  "pond_id": "pond-01-scenario",
-  "dashboard": {},
-  "baseline": {},
-  "simulation": {
-    "provenance": "simulated",
-    "current_biomass_g_l": 0.31,
-    "simulated_biomass_g_l": 0.34,
-    "biomass_delta_g_l": 0.03,
-    "relative_biomass_delta_pct": 9.68,
-    "simulated_health_score": 89.0,
-    "classification": "beneficial"
+  "data": [
+    {
+      "pond_id": "pond-02",
+      "latest": {},
+      "history": [],
+      "returned_history_count": 20,
+      "latest_simulation": {},
+      "simulation_history": []
+    }
+  ],
+  "query": {
+    "pond_id": null,
+    "limit": 20
   },
-  "satellite": null,
-  "live_state_changed": false
+  "cursor": {
+    "position": 6,
+    "cycle": 0
+  }
 }
 ```
 
-Example:
+The frontend should use:
 
-```bash
-curl -X POST http://localhost:8000/simulate \
-  -H 'Content-Type: application/json' \
-  --data @examples/simulate.json
+- `latest.source_data.iot_data` for current sensor values;
+- `history` for charts;
+- `latest.dashboard` for prediction cards;
+- `latest.insights` for alerts;
+- `latest.source_data.image.base64` for the current image;
+- `latest_simulation` for the last scenario.
+
+## Cron example
+
+```javascript
+async function runAlgaTwinBurst() {
+  const response = await axios.post(
+    process.env.ALGATWIN_URL + "/predict",
+    {
+      batch_size: 3,
+      include_images: true,
+      return_image_base64: true
+    },
+    {
+      headers: {
+        "X-API-Key": process.env.ALGATWIN_API_KEY
+      },
+      timeout: 30000
+    }
+  );
+
+  const updates = response.data.data;
+  publishToDashboardClients(updates);
+  return updates;
+}
 ```
+
+The AlgaTwin service writes history to MongoDB itself when `ALGATWIN_MONGODB_URI` is configured. The calling backend should not insert duplicate prediction documents.
 
 ## Frontend example
 
 ```javascript
-const response = await fetch("http://localhost:8000/predict", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    // "X-API-Key": "your-key"
-  },
-  body: JSON.stringify(sensorAndSatellitePayload)
-});
+const response = await fetch("/algatwin/dashboard?pond_id=pond-02&limit=50");
+const payload = await response.json();
+const pond = payload.data[0];
 
-if (!response.ok) throw new Error(await response.text());
-
-const data = await response.json();
-setDashboard(data.dashboard);
+renderSensors(pond.latest.source_data.iot_data);
+renderPredictionCards(pond.latest.dashboard);
+renderInsights(pond.latest.insights);
+renderHistory(pond.history);
+renderImage(
+  "data:image/jpeg;base64," + pond.latest.source_data.image.base64
+);
 ```
 
-## Authentication and errors
-
-Set `ALGATWIN_API_KEY` to protect both workflow endpoints, then send `X-API-Key`.
+## Errors
 
 - `401`: missing or invalid API key;
-- `422`: invalid input, no prediction data, unsupported simulation control, or invalid image;
-- `500`: unexpected server failure.
+- `404`: unknown dashboard pond or simulation before prediction;
+- `422`: invalid batch, model input, image or scenario change;
+- `503`: simulation completed but persistence failed.
 
-Operational routes:
-
-- `GET /health` checks model readiness;
-- `GET /models` returns the model manifest;
-- `GET /docs` provides interactive Swagger documentation.
+Maximum decoded submitted image size is 10 MB. JPG, PNG and WebP are supported.

@@ -1,19 +1,33 @@
-# AlgaTwin inference API
+# AlgaTwin stream, simulation and dashboard API
 
-This is a standalone, GitHub-ready inference service with two primary JSON endpoints. It contains the API runtime, all validated model artifacts, examples, Docker packaging, documentation, and tests. The original notebooks and source CSV directories are not required at runtime.
+A standalone FastAPI service containing all validated AlgaTwin artifacts, a 999-row circular demonstration stream, 999 condition-matched pond images, MongoDB-aware persistence, frontend-ready responses, Docker packaging and tests.
 
-## The two endpoints
+## API surface
 
-| Method and path | Input | JSON output |
-|---|---|---|
-| `POST /predict` | Any combination of IoT, satellite-reflectance and pond-image data | Dashboard summary plus complete digital-twin, satellite and image results |
-| `POST /simulate` | Custom baseline IoT data and proposed control changes | Baseline, simulated outcome, dashboard summary and optional satellite result |
+| Method | Path | Consumer | Purpose |
+|---|---|---|---|
+| POST | `/predict` | Cron worker | Consume the next CSV burst and run IoT, forecast, anomaly, satellite and image inference |
+| POST | `/simulate` | Backend/user | Apply changes to the latest streamed baseline; optionally classify a submitted image |
+| GET | `/dashboard` | Backend/frontend | Read latest readings and history without advancing the stream |
+| GET | `/health` | Infrastructure | Model readiness, row count and cursor |
+| GET | `/models` | Developers | Model manifest |
+| GET | `/docs` | Developers | Interactive OpenAPI documentation |
 
-`GET /health` and `GET /models` are operational metadata routes, not prediction workflows.
+## Demonstration data
 
-## Quick start
+[data/pond_iot_stream.csv](data/pond_iot_stream.csv) contains 999 rows:
 
-Python 3.12 is recommended because the model artifacts were serialized with the pinned versions in `requirements.txt`.
+- 333 chronological time steps;
+- three ponds per time step;
+- gradual stable, heat/low-oxygen and nutrient/light-limitation trajectories;
+- IoT features, satellite reflectance, image metadata and explicit provenance;
+- one 100×100 condition-matched visual fixture per row in `data/stream_images/`.
+
+The numeric stream and its association with visual fixtures are demonstration mappings, not synchronized real-world observations.
+
+With the default `batch_size: 3`, each cron call returns one reading per pond. After call 333, the cursor automatically restarts at row 1 and increments `stream_cycle`.
+
+## Start locally
 
 ```bash
 cd alga_twin_api_package
@@ -23,77 +37,54 @@ pip install -r requirements.txt
 python -m uvicorn alga_twin_api.main:app --host 0.0.0.0 --port 8000
 ```
 
-Open Swagger UI at `http://localhost:8000/docs`.
-
-Send the included examples:
+Open `http://localhost:8000/docs`.
 
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H 'Content-Type: application/json' \
   --data @examples/predict.json
 
+curl 'http://localhost:8000/dashboard?limit=20'
+
 curl -X POST http://localhost:8000/simulate \
   -H 'Content-Type: application/json' \
   --data @examples/simulate.json
 ```
 
-Or run:
+## Persistence
+
+Without MongoDB, cursor and dashboard history are kept in bounded process memory.
+
+With MongoDB:
 
 ```bash
-python examples/client.py
+export ALGATWIN_MONGODB_URI='mongodb://localhost:27017'
+export ALGATWIN_MONGODB_DATABASE='algatwin'
 ```
 
-Both responses contain a compact `dashboard` object for frontend cards and charts. Full outputs remain available alongside it.
+The service automatically uses:
+
+- `stream_cursors`;
+- `predictions`;
+- `simulations`.
+
+See [BACKEND_DATABASE_HANDOFF.md](BACKEND_DATABASE_HANDOFF.md) for schemas, indexes, cron logic, ownership and deployment tasks.
 
 ## Docker
 
 ```bash
-docker build -t algatwin-api .
-docker run --rm -p 8000:8000 algatwin-api
+docker compose up --build
 ```
 
-Or run `docker compose up --build`.
+The included Compose file starts the API and a local MongoDB development container. Secure MongoDB separately for production.
 
-## Tests
+## Verification
 
 ```bash
 python -m pytest -q
+(cd models && sha256sum -c SHA256SUMS)
 ```
 
-## Configuration
+Detailed contracts are in [API_USAGE.md](API_USAGE.md), data design in [data/README.md](data/README.md), and model metrics/limits in [MODEL_CARD.md](MODEL_CARD.md).
 
-| Variable | Purpose | Default |
-|---|---|---|
-| `ALGATWIN_MODEL_DIR` | Model artifact directory | `models` relative to package root |
-| `ALGATWIN_CORS_ORIGINS` | Comma-separated browser origins | localhost ports 3000 and 5173 |
-| `ALGATWIN_API_KEY` | Optional shared API key | Unset; local requests are open |
-
-When `ALGATWIN_API_KEY` is set, include it as the `X-API-Key` header. Health and API documentation remain public.
-
-## Publish this folder to GitHub
-
-Create an empty GitHub repository, then run from this directory:
-
-```bash
-git init
-git add .
-git commit -m "Add standalone AlgaTwin inference API"
-git branch -M main
-git remote add origin https://github.com/YOUR_ACCOUNT/YOUR_REPOSITORY.git
-git push -u origin main
-```
-
-Every file is currently below GitHub's 100 MB per-file limit. Git LFS is optional for the included artifacts. Before publishing publicly, confirm that the source datasets permit redistribution of the derived models and ATP3 reference table. No license is assigned automatically.
-
-## Important deployment notes
-
-- `/predict` keeps per-pond history in memory to improve sequential state updates.
-- `/simulate` creates a temporary twin and never changes live pond state.
-- Run one Uvicorn worker. Use Redis/PostgreSQL before multiple workers or replicas.
-- State disappears on restart unless you connect persistent storage.
-- Only load trusted joblib artifacts; joblib/pickle files can execute code when loaded.
-- The 24-hour learned candidate is quality-gated; runtime safely falls back to persistence.
-- Remote chlorophyll-a/turbidity results use Utah Lake calibration and are not ATP3 biomass measurements.
-- Core hashes are in `models/SHA256SUMS`; verify with `(cd models && sha256sum -c SHA256SUMS)`.
-
-See [API_USAGE.md](API_USAGE.md) for exact contracts and [MODEL_CARD.md](MODEL_CARD.md) for metrics and limitations.
+Before publishing publicly, confirm redistribution rights for the derived models, ATP3 reference table and visual-condition fixtures.

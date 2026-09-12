@@ -1,0 +1,20 @@
+{
+  "split": "chronological future-date holdout",
+  "cutoff_date": "2024-01-27T00:00:00",
+  "train_rows": 207822,
+  "test_rows": 54674,
+  "chla": {
+    "mae": 1.1368216005822773,
+    "rmse": 1.855718197248801,
+    "r2": 0.9951584517706941,
+    "median_baseline_mae": 19.77887112704393,
+    "median_baseline_rmse": 28.53118334413111
+  },
+  "turbidity": {
+    "mae": 2.1453257002662456,
+    "rmse": 9.539100557212226,
+    "r2": 0.9157698147672071,
+    "median_baseline_mae": 19.403793393569156,
+    "median_baseline_rmse": 32.881892320763505
+  }
+}

@@ -1,333 +1,344 @@
-# AlgaTwin
+# Team O(N3)
 
-Algae-Based Carbon Sequestration Monitoring Platform
+## AlgaTwin - living intelligence for algae ponds
 
-A real-time MRV platform for industrial algae farms that combines IoT telemetry, AI-based growth modeling, and an interactive digital twin interface to track CO2 capture, biomass estimation, and pond health.
+AlgaTwin is a model-backed digital twin and carbon MRV workspace for algae farms. It turns pond telemetry, satellite reflectance and visual evidence into an always-current operational picture: biomass estimates, short-horizon forecasts, anomaly warnings, bounded corrective scenarios and provenance-aware carbon accounting.
 
----
+![AlgaTwin Command Center](docs/screenshots/02-command-center.png)
 
-## Overview
+> One pond view. Six model families. Fifteen-second updates. Every output keeps its evidence type.
 
-AlgaTwin is built for industrial algae cultivation environments where operational monitoring, carbon accounting, and predictive intelligence must work together. The platform enables farm operators, verifiers, and researchers to track pond health, simulate future scenarios, and maintain a trustworthy historical record of actual operational performance.
+Built for HackOut'26 by Team O(N3).
+- Nishant Asnani
+- Deep Bhatt
+- Kajal Varlani
 
-The project addresses a critical gap in the carbon capture ecosystem: while algae farms can absorb CO2 and generate biomass, proving that value in a reliable and auditable way is difficult without a proper MRV system. AlgaTwin brings together:
+## The problem
 
-- live environmental telemetry,
-- AI-driven forecasting,
-- simulation-based experimentation,
-- and a digital twin-style operational dashboard.
+Algae can convert CO2 into biomass, but an operator still has to answer three difficult questions:
 
-This turns algae cultivation into a more measurable, transparent, and investable sustainability system.
+1. Is the pond healthy right now?
+2. What is likely to happen next, and what small change should we test?
+3. Which carbon number is measured, modeled, simulated or actually verified?
 
----
+These questions are usually split across sensor tables, research models, image reviews and spreadsheets. That separation slows intervention and makes carbon claims difficult to audit.
 
-## HackOut'26 Project
+## Our solution
 
-This project was built for HackOut'26 as a modern solution for algae-based carbon sequestration monitoring and performance verification.
+AlgaTwin makes the digital twin the central intelligence layer:
 
----
+- a circular 999-row stream represents gradual IoT and satellite conditions for three independent ponds;
+- a FastAPI service loads all model artifacts once and maintains a separate stateful twin per pond;
+- the React command center refreshes the prediction cycle every 15 seconds;
+- animated pond signals make temperature, health, stress and CO2 intensity understandable at a glance;
+- a bounded scenario engine ranks small corrective actions without changing live state;
+- a carbon MRV layer exposes its boundary, factors, assumptions, uncertainty and provenance;
+- Aoi answers only algae-farming, pond-operation and carbon/MRV questions, using retrieved knowledge and current model evidence.
 
-## Team Members
+No MongoDB is required for the hackathon run. Prediction and simulation history are bounded in process memory.
 
-- Nishant Prakash Asnani — Backend Developer
-- Deep Bhat — AI Developer
-- Kajal Varlani — Frontend Developer
+## Why this is different
 
----
+### A living interface, not another sensor grid
 
-## Key Features
+The main scene is composed in the frontend as a responsive ecosystem. Its visual state changes with the model response:
 
-### 1. Live Telemetry & Replay Stream
-AlgaTwin continuously ingests pond telemetry and records it in a replayable historical ledger. This creates a reliable compliance trail for environmental monitoring and supports traceable performance assessments over time.
+- health state changes the pond atmosphere and warning treatment;
+- CO2 controls the count, size and release cadence of gas bubbles;
+- pond life and ambient motion create a continuously active scene;
+- warnings, health rings and chemistry cards change tone when conditions deteriorate;
+- the Digital Twin Engine animates inference packets through observation, model, state and decision paths;
+- reduced-motion preferences are respected.
 
-- real-time pond health monitoring
-- historical replay for audit-ready review
-- compliance-friendly time-series event logging
+### Decisions remain traceable
 
-### 2. Interactive Scenario Simulator (Sandbox Mode)
-Operators can change environmental parameters such as temperature, nitrate, light, and CO2 to understand how a pond may behave under different conditions without polluting the live audit trail.
+AlgaTwin separates five evidence classes throughout the interface and API:
 
-- risk-free experimentation
-- predictive impact analysis using AI models
-- response testing for future operational decisions
+| Evidence class | Meaning |
+| --- | --- |
+| Measured/replayed | IoT values from the current stream row |
+| Estimated | Biomass, chlorophyll-a, turbidity and gross uptake derived by models |
+| Predicted | Future biomass and anomaly outputs |
+| Simulated | Counterfactual scenario results that never alter live state |
+| Verified | Evidence that has completed an explicit verification step |
 
-### 3. Automated Anomaly Detection
-The system flags pond conditions as Optimal, Mild Stress, or Critical to help teams identify when intervention is needed.
+This prevents a simulation from being presented as an observation and prevents gross modeled uptake from being presented as a certified credit.
 
-- early warning alerts
-- operational stress classification
-- rapid response support
+### Models decide; Gemini explains
 
-### 4. Digital Twin Interface
-The platform presents a digital twin of the pond environment so users can monitor system behavior in a more intuitive and visual way.
+Aoi is not a generic chatbot. Every question passes a deterministic scope guard before any model call. In-scope questions retrieve curated algae/carbon knowledge and, where available, current digital-twin evidence. Gemini can rewrite that grounded draft, but it cannot introduce an unsupported action or answer an outside topic.
 
-- live state visualization
-- operational monitoring dashboard
-- decision-friendly situational awareness
-
-### 5. Carbon and Biomass Intelligence
-The platform estimates the relationship between growth conditions, biomass output, and CO2 capture potential, helping operators make sustainability-oriented decisions with greater confidence.
-
----
-
-## System Architecture
-
-AlgaTwin is structured as a multi-layer platform that separates operational monitoring from predictive simulation.
+## End-to-end approach
 
 ```text
-+---------------------------+
-| Frontend / Dashboard      |
-| React + Tailwind UI       |
-+-------------+-------------+
+Circular pond stream (999 rows, 3 ponds)
               |
               v
-+---------------------------+
-| Backend API               |
-| Node.js + Express.js      |
-| Controller-Service Layer  |
-+-------------+-------------+
+POST /predict every 15 seconds
               |
-              +---------------------------+
-              |                         |
-              v                         v
-+---------------------+   +---------------------------+
-| MongoDB / Mongoose  |   | Python FastAPI AI Service |
-| Event Store         |   | Growth & Prediction Model  |
-+---------------------+   +---------------------------+
+      +-------+--------+
+      |       |        |
+      v       v        v
+   Pond 01  Pond 02  Pond 03
+   isolated stateful digital twins
+      |       |        |
+      +-------+--------+
+              |
+   +----------+-----------+--------------+
+   |          |           |              |
+   v          v           v              v
+Biomass    Forecast    Anomaly       Remote/image
+estimate   6h / 24h   + health       supporting evidence
+   |          |           |              |
+   +----------+-----------+--------------+
+              |
+        Dashboard JSON
+              |
+     +--------+---------+----------------+
+     |                  |                |
+     v                  v                v
+Command Center     Scenario Lab      Carbon MRV
 ```
 
-### Backend Architecture
-The backend follows a clean controller-service pattern, ensuring modularity and clear separation of request handling, business logic, and persistence.
+A scenario starts from the currently streamed row, applies bounded custom changes, returns model-scored JSON, and leaves both the live state and stream cursor unchanged.
 
-- controllers handle incoming API requests
-- services manage business logic and orchestration
-- database layer persists operational and predictive records
+## Model inventory
 
-### Database Design
-The database is designed around a time-series event model with a strong separation between live operational data and sandbox-generated forecasts.
+The service loads six artifact families containing nine logical estimators.
 
-#### Live vs. Simulation State Separation
-A critical design principle in AlgaTwin is the distinction between:
+| Runtime capability | Validation result | Runtime policy |
+| --- | --- | --- |
+| Current AFDW biomass | MAE 0.0692 g/L, R2 0.280 on held-out ATP3 experiments | Active |
+| Near-6h biomass | MAE 0.0563 vs persistence MAE 0.1312 | Active |
+| Near-24h biomass | MAE 0.0579 vs persistence MAE 0.0567 | Trained model gated off; safer persistence fallback |
+| Crash risk | ROC-AUC 0.675; AP 0.067 vs 0.030 prevalence | One anomaly component |
+| Isolation Forest novelty | Unsupervised ATP3 reference envelope | One anomaly component |
+| Image condition | 0.684 accuracy vs 0.545 majority baseline | Supporting evidence |
+| Satellite chlorophyll-a | R2 0.995 on future-date Utah Lake holdout | Remote pathway only |
+| Satellite turbidity | R2 0.916 on future-date Utah Lake holdout | Remote pathway only |
+| CO2 next-day growth | R2 -0.541 on leave-one-experiment-out study | Direct model gated off; bounded empirical contrast |
 
-- live baseline records representing actual pond conditions
-- simulated records representing hypothetical conditions in sandbox mode
+Full assumptions, limitations and runtime measurements are in [the model card](model-api/MODEL_CARD.md). Exact metrics are machine-readable in [model_manifest.json](model-api/models/model_manifest.json).
 
-This is enforced using an `isSimulation` flag in the schema boundary:
+## Product walkthrough
 
-```js
-{
-  pondId: "pond-01",
-  timestamp: "2026-09-12T12:00:00Z",
-  isSimulation: false,
-  temperature: 28.3,
-  nitrate: 19.4,
-  co2_uptake: 0.62,
-  biomass_estimate: 1.74
-}
-```
+### 1. Access profiles
 
-```js
-{
-  pondId: "pond-01",
-  timestamp: "2026-09-12T12:15:00Z",
-  isSimulation: true,
-  temperature: 31.0,
-  nitrate: 10.2,
-  co2_uptake: 0.74,
-  biomass_estimate: 1.92,
-  scenarioLabel: "heat-stress-projection"
-}
-```
+Three local demo identities show pond-level access without requiring a database.
 
-This makes it possible to:
+| Profile | Username | Password | Ponds |
+| --- | --- | --- | --- |
+| Pond Operator | `pond.one` | `algae1` | Pond 01 |
+| Farm Manager | `pond.team` | `algae2` | Pond 01 and Pond 02 |
+| Portfolio Admin | `pond.admin` | `algae3` | All three ponds |
 
-- preserve an auditable baseline ledger for real operational data,
-- run exploratory scenario analysis without contaminating compliance records,
-- maintain a clean audit trail for both production and predictive states.
+These are hackathon-only browser profiles, not production authentication. See [DEMO_ACCESS.md](DEMO_ACCESS.md).
 
-### Automation
-Background cron jobs periodically fetch new pond records and AI predictions to keep operational views current.
+### 2. Command Center
 
-- node-cron for scheduled jobs
-- automated data sync and refresh
-- periodic prediction runs for live monitoring
+The desktop command center fits in one viewport and combines the living pond, anomaly watch, model reading, scaled biomass trajectory, chemistry, history and stream position.
 
----
+### 3. Digital Twin Engine
 
-## API Endpoints Overview
+An inspectable pipeline shows how IoT, satellite and image observations flow into the biomass, forecast, anomaly and carbon models, then into scenario, JSON and MRV outputs. Animated packets take several paths through the graph, and the lookup panel explains every stage.
 
-The backend exposes a compact set of endpoints for current state, historical review, and scenario execution.
+### 4. AI Intelligence
 
-### Core endpoints
+Every visible pond receives a bounded micro-action search. Candidate temperature, pH, nitrate and CO2 adjustments are evaluated by the packaged digital-twin simulator. The highest-ranked evaluable micro-action is shown with expected biomass, health and classification; it is always labeled simulated.
 
-- `GET /latest` — fetch the most recent operational state for a pond or farm
-- `GET /history` — fetch historical telemetry and event records
-- `POST /simulate` — run a sandbox simulation with custom environment parameters
+### 5. Remote verification and scenarios
 
-### Example summary
+Satellite and image outputs are supporting evidence with dataset-specific provenance. The scenario lab compares current and counterfactual ponds side by side and guarantees `live_state_changed: false` and `cursor_advanced: false`.
 
-```http
-GET /api/latest?pondId=pond-01
-GET /api/history?pondId=pond-01&limit=50
-POST /api/simulate
-Content-Type: application/json
-```
+### 6. Carbon MRV and reports
 
-These endpoints allow the frontend and AI service to work together while preserving the distinction between live operational records and scenario outputs.
+Users define pond volume, accounting window, operational emissions and a permanence factor. The API returns gross biological capture, net estimate, permanence-adjusted estimate, confidence factors and provenance. Reports export the same evidence as JSON or a printable PDF view.
 
----
+## Screenshot gallery
 
-## Screenshot Gallery
+All screenshots below were captured from the running application at 1600 x 1000.
 
-The screenshots below are stored in the project assets folder and referenced directly from there.
+### Login and live operations
 
-### Dashboard Overview
-![Dashboard Overview](backend/assets/Screenshot%202026-09-12%20at%2014.57.01.png)
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/01-login.png" alt="AlgaTwin login with three pond-access profiles"><br><b>Role-based demo access</b></td>
+    <td width="50%"><img src="docs/screenshots/02-command-center.png" alt="AlgaTwin living pond command center"><br><b>Single-viewport Command Center</b></td>
+  </tr>
+</table>
 
-Live pond command center showing telemetry, pond health, and carbon monitoring in a single operational view.
+### Digital twin and AI decisions
 
-### Historical Replay and Event Stream
-![Historical Replay](backend/assets/Screenshot%202026-09-12%20at%2014.57.16.png)
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/03-digital-twin-engine.png" alt="Animated Digital Twin Engine flow"><br><b>Inspectable animated inference flow</b></td>
+    <td width="50%"><img src="docs/screenshots/04-ai-intelligence.png" alt="AI Intelligence model-ranked corrective actions"><br><b>Model-ranked corrective micro-actions</b></td>
+  </tr>
+</table>
 
-Historical telemetry timeline used to review pond conditions and operational performance over time.
+### Verification and intervention
 
-### Scenario Simulator
-![Scenario Simulator](backend/assets/Screenshot%202026-09-12%20at%2014.57.28.png)
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/05-satellite-verification.png" alt="Satellite verification page"><br><b>Remote and visual supporting evidence</b></td>
+    <td width="50%"><img src="docs/screenshots/06-scenario-lab.png" alt="Scenario simulation page"><br><b>Non-mutating intervention simulator</b></td>
+  </tr>
+</table>
 
-Sandbox simulation interface for testing environmental adjustments and forecasting pond response without altering live baseline data.
+### Carbon evidence and reporting
 
-### Intervention Before Impact
-![Intervention Design](backend/assets/Screenshot%202026-09-12%20at%2014.57.40.png)
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/07-carbon-mrv.png" alt="Carbon MRV accounting page"><br><b>Transparent carbon accounting</b></td>
+    <td width="50%"><img src="docs/screenshots/08-reports.png" alt="Carbon evidence report"><br><b>Exportable evidence report</b></td>
+  </tr>
+</table>
 
-Custom intervention controls used to simulate a response before a pond enters a risky condition.
+### Scoped Aoi assistant
 
-### Remote Verification and AI Evidence
-![Remote Verification](backend/assets/Screenshot%202026-09-12%20at%2014.57.49.png)
+![Aoi algae and carbon assistant](docs/screenshots/09-aoi-assistant.png)
 
-Remote monitoring view highlighting AI-based evidence, remote sensing analysis, and operational verification signals.
+Aoi opens from a small floating control, stays out of the operational layout until requested, and refuses unrelated questions before Gemini is called.
 
----
+## API surface
 
-## Tech Stack
+Default local model API: `http://127.0.0.1:8000`
 
-### Backend
-- Node.js
-- Express.js
-- MongoDB
-- Mongoose
-- Axios
-- Node-Cron
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Model registry and stream readiness |
+| GET | `/models` | Machine-readable model manifest |
+| POST | `/predict` | Consume the next circular stream rows and run the full model stack |
+| GET | `/dashboard` | Read latest state, history and last simulation without advancing the stream |
+| POST | `/simulate` | Apply custom conditions or an image to the current streamed baseline |
+| GET | `/ponds/{pond_id}/ai-insights` | Return findings and model-ranked scenarios |
+| GET | `/ponds/{pond_id}/mrv` | Calculate a provenance-aware carbon estimate |
+| POST | `/assistant/chat` | Return a scope-guarded, evidence-grounded Aoi response |
 
-### AI / ML
-- Python
-- FastAPI
-- Scikit-learn / ML modeling stack
-- AI-driven growth and sequestration prediction layer
+Detailed payloads are documented in [API_USAGE.md](model-api/API_USAGE.md), with the machine-readable contract in [API_CONTRACT.json](model-api/API_CONTRACT.json).
 
-### Frontend
-- React
-- Tailwind CSS
-- Clean squared-card UI
-- Icon-based monitoring indicators
-- Minimal rigid layout system for operational clarity
+## Run locally
 
----
+### Prerequisites
 
-## Local Setup & Installation
+- Node.js 18 or newer
+- Python 3.10 or newer
+- npm
 
-### MongoDB-free hackathon run
-
-The current frontend uses the FastAPI model service directly and keeps bounded prediction history in process memory. MongoDB and the legacy Node backend are not required:
+### One-command hackathon run
 
 ```bash
 cd O-N3-AlgaTwin
 bash scripts/dev.sh
 ```
 
-Open `http://127.0.0.1:5173`. The model API documentation is at `http://127.0.0.1:8000/docs`.
+Open:
 
-To enable Gemini wording for Aoi, copy the model API environment template and add your key:
+- application: http://127.0.0.1:5173
+- FastAPI documentation: http://127.0.0.1:8000/docs
+- model health: http://127.0.0.1:8000/health
+
+The launcher uses the compatible project Python environment when present, enables polling for file watching on shared/HPC machines, starts the model API, and starts Vite.
+
+### Optional Gemini explanation layer
 
 ```bash
 cp model-api/.env.example model-api/.env
-# Edit model-api/.env and set GEMINI_API_KEY=your-key
+# Add GEMINI_API_KEY manually
 bash scripts/dev.sh
 ```
 
-`scripts/dev.sh` loads `model-api/.env` automatically. Aoi decisions remain deterministic and model-backed. Gemini only explains the compact evidence and ranked scenarios; without a key, Aoi uses its deterministic fallback.
+The key remains server-side. Without it, the deterministic retrieval response remains fully functional. Scope policy is documented in [KNOWLEDGE_BASE.md](model-api/KNOWLEDGE_BASE.md).
 
+## Example API calls
 
-### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-- Python 3.10+
-- MongoDB is optional and is not used by the default hackathon run
-- Git
-
-### 1. Clone the repository
+Advance one row per pond:
 
 ```bash
-git clone <repository-url>
-cd AlgaTwin
+curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"batch_size":3,"include_images":true,"return_image_base64":false}'
 ```
 
-### 2. Backend setup
+Test a scenario against the current Pond 02 baseline:
 
 ```bash
-cd backend
-npm install
-cp .env.example .env
+curl -X POST http://127.0.0.1:8000/simulate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pond_id":"pond-02",
+    "changes":{
+      "water_temp_avg_c":27.5,
+      "nitrate_mg_l":50,
+      "co2_ppm":700
+    }
+  }'
 ```
 
-Update the environment variables in `.env` with your MongoDB connection details and app settings.
-
-Run the backend:
+Read dashboard-ready JSON:
 
 ```bash
-npm start
+curl "http://127.0.0.1:8000/dashboard?pond_id=pond-02&limit=48"
 ```
 
-### 3. AI service setup
+## Repository map
 
-```bash
-cd model-api
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn alga_twin_api.main:app --host 0.0.0.0 --port 8000
+```text
+O-N3-AlgaTwin/
+|-- frontend/              React interface and animated ecosystem
+|-- model-api/             FastAPI, model registry and inference endpoints
+|   |-- alga_twin_api/     Stream, twin, decision, MRV and scoped RAG logic
+|   |-- models/            Packaged trained artifacts and manifest
+|   |-- data/              999-row three-pond stream and mapped images
+|   |-- tests/             Integration and safety tests
+|-- docs/screenshots/      Captured product walkthrough
+|-- scripts/dev.sh         MongoDB-free development launcher
+|-- DEMO_ACCESS.md         Demo profile behavior and credentials
 ```
 
-### 4. Frontend setup
+The legacy Node backend remains in the repository for future persistence integration, but the default application does not start it or require MongoDB.
+
+## Verification
+
+The current submission passes:
+
+```text
+Frontend lint:          passed
+Frontend production:    passed
+Model API tests:        10 passed
+Model artifacts:        loaded once at startup
+Stream rows:            999
+Ponds per cycle:        3
+Default refresh:        15 seconds
+```
+
+Run the same checks:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+npm run lint
+npm run build
+
+cd ../model-api
+PYTHONPATH=. pytest -q
 ```
 
-### 5. Optional Docker setup
+## Responsible claims and limitations
 
-If a containerized environment is available:
+- AlgaTwin is a decision-support prototype, not an autonomous actuator controller.
+- The satellite pathway carries Utah Lake-specific calibration provenance.
+- Sparse crash labels limit anomaly certainty.
+- Image classes are imbalanced and image results remain supporting evidence.
+- The 24-hour learned forecast and direct CO2-growth model are runtime-gated because they did not outperform their safety baselines.
+- Gross biological uptake is not a net carbon credit.
+- Registry-grade MRV still requires a defined methodology, calibrated field instrumentation, lifecycle emissions, permanence treatment and independent verification.
 
-```bash
-docker-compose up --build
-```
+The value of the prototype is not that uncertainty disappears. It is that uncertainty, provenance and runtime gates become visible to the operator.
 
----
+## Team O(N3)
 
-## Project Goals
+- Nishant Prakash Asnani - Backend Developer
+- Deep Bhat - AI/ML Developer
+- Kajal Varlani - Frontend Developer
 
-AlgaTwin aims to make algae-based carbon sequestration more measurable, operationally useful, and investment-friendly. By combining sensing, intelligence, and verification, the project creates a robust foundation for next-generation carbon MRV systems in industrial algae production.
-
----
-
-## License
-
-This project is developed for HackOut'26 and is intended for demonstration and collaborative technical exploration.
-
----
-
-## Contact / Repository
-
-For questions, collaboration, or extension ideas, please reach out via the project repository or internal team channels.
+Built for HackOut'26.
